@@ -1,8 +1,10 @@
-/* Qazi Island — renderer (single-line pill; the only thing that ever drops below it is the notification stack) */
+/* MIMO — renderer (single-line pill; the only thing that ever drops below it is the notification stack).
+   Every user-visible string goes through t() (ui/i18n.js) — English or Persian, chosen in Settings. */
 (() => {
 'use strict';
 const $ = (s) => document.querySelector(s);
 const $$ = (s) => [...document.querySelectorAll(s)];
+const t = window.MI18N.t;
 const island = $('#island'), glow = $('#glow'), stackEl = $('#stack'), stackList = $('#stack-list'), stackHead = $('#stack-head');
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 
@@ -68,7 +70,7 @@ const setIcon = (el, name) => { if (el.dataset.cur !== name) { el.innerHTML = sv
 $$('[data-icon]').forEach((el) => setIcon(el, el.dataset.icon));
 const badge = document.createElement('i'); badge.className = 'badge'; $('#t-inbox').appendChild(badge);
 const shelfBadge = document.createElement('i'); shelfBadge.className = 'badge quiet'; $('#t-shelf').appendChild(shelfBadge);
-const gearBadge = document.createElement('i'); gearBadge.className = 'badge dot'; gearBadge.title = 'An update is available'; $('#t-gear').appendChild(gearBadge);
+const gearBadge = document.createElement('i'); gearBadge.className = 'badge dot'; gearBadge.title = t('updateDot'); $('#t-gear').appendChild(gearBadge);
 
 // ------------------------------------------------------------ state
 const st = {
@@ -91,6 +93,7 @@ const st = {
   // settings
   autoHide: true, hideVideo: true, calendar: 'gregorian', deviceAlerts: true, shelfOn: true, visuals: true,
   weather: null, events: null, monitors: null,    // the sky report · the day's calendar rows · the screens for the picker
+  pluginSpecs: [], plugins: {},                   // the plugins folder · their newest answers, by id
   lyrics: null, stats: null, lyrAt: -1,           // the words of the track · machine numbers · the highlighted lyric line
   // auto-hide: tuck above the screen edge while an app window sits underneath (always for fullscreen apps)
   covered: false, full: false, tucked: false, peekSince: 0, revealUntil: 0,
@@ -271,6 +274,7 @@ function startMarquee(box, brisk) {
   stopMarquee(box);
   const inner = box.firstElementChild;
   if (!inner || box.scrollWidth - box.clientWidth < 6) return 0;
+  if (window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches) return 0;   // Windows asked for stillness
   box.classList.add('mq-on');
   const over = inner.offsetWidth - box.clientWidth;
   if (over < 1) { stopMarquee(box); return 0; }
@@ -325,7 +329,9 @@ let sideN = null, sideT = 0;
 const inUse = () => !st.tucked && (st.stackOpen || st.typing || !!st.manual || (st.hover && cur === 'tools'));
 function placeSide() {
   const w = island.clientWidth;
-  side.style.left = `calc(50% + ${w / 2 + 8}px)`;
+  const off = `calc(50% + ${w / 2 + 8}px)`;
+  if (document.documentElement.dir === 'rtl') { side.style.left = ''; side.style.right = off; }   // mirror: it waits on the left in Persian
+  else { side.style.right = ''; side.style.left = off; }
   side.style.maxWidth = Math.max(30, 350 - w / 2 - 14) + 'px';
 }
 function sideShow(n) {
@@ -405,25 +411,25 @@ function updateBadge() {       // the count lives on the bell inside the menu on
 }
 const rel = (ts) => {
   const m = Math.floor((Date.now() - ts) / 60000);
-  return m < 1 ? 'now' : m < 60 ? m + 'm' : m < 1440 ? Math.floor(m / 60) + 'h' : Math.floor(m / 1440) + 'd';
+  return m < 1 ? t('now') : m < 60 ? m + t('unitM') : m < 1440 ? Math.floor(m / 60) + t('unitH') : Math.floor(m / 1440) + t('unitD');
 };
 function renderFiles() {
-  $('#stack-clear').textContent = 'Clear shelf';
+  $('#stack-clear').textContent = t('clearShelf');
   $('#stack-clear').classList.toggle('hidden', !st.shelf.length);
   if (!st.shelf.length) {
-    const e = document.createElement('div'); e.className = 'row empty wide'; e.textContent = 'Drop files on the pill to hold them';
+    const e = document.createElement('div'); e.className = 'row empty wide'; e.textContent = t('dropFilesEmpty');
     stackList.appendChild(e); return;
   }
   st.shelf.forEach((f, i) => {
     const row = document.createElement('div'); row.className = 'row file'; row.style.setProperty('--i', Math.min(i, 6));
-    row.draggable = true; row.title = 'Drag this out to drop the file somewhere — click to show it in its folder';
+    row.draggable = true; row.title = t('fileRowTitle');
     const ic = document.createElement('div'); ic.className = 'ic plain';
     if (f.icon) ic.style.backgroundImage = `url(data:image/png;base64,${f.icon})`; else ic.innerHTML = svg('file');
     const box = document.createElement('span'); box.className = 'mqbox'; box.dir = 'auto';
     const mq = document.createElement('span'); mq.className = 'mq';
     const b = document.createElement('b'); b.textContent = f.name; mq.appendChild(b);
     box.appendChild(mq);
-    const x = document.createElement('button'); x.className = 'x show'; x.title = 'Take off the shelf (the file itself is not touched)'; x.innerHTML = svg('close');
+    const x = document.createElement('button'); x.className = 'x show'; x.title = t('takeOffShelf'); x.innerHTML = svg('close');
     row.append(ic, box, x);
     row.addEventListener('mouseenter', () => startMarquee(box));
     row.addEventListener('mouseleave', () => stopMarquee(box));
@@ -435,32 +441,32 @@ function renderFiles() {
 }
 function renderClips() {
   const loose = st.clips.filter((c) => !c.pinned).length;
-  $('#stack-clear').textContent = 'Clear history';
+  $('#stack-clear').textContent = t('clearHistory');
   $('#stack-clear').classList.toggle('hidden', !loose);
   if (!st.clips.length) {
-    const e = document.createElement('div'); e.className = 'row empty wide'; e.textContent = 'Whatever you copy shows up here';
+    const e = document.createElement('div'); e.className = 'row empty wide'; e.textContent = t('clipsEmpty');
     stackList.appendChild(e); return;
   }
   st.clips.forEach((c, i) => {
     const row = document.createElement('div'); row.className = 'row clip' + (c.pinned ? ' pinned' : ''); row.style.setProperty('--i', Math.min(i, 6));
-    row.title = 'Click to copy it again';
-    const pin = document.createElement('button'); pin.className = 'pin'; pin.title = c.pinned ? 'Unpin' : 'Pin (kept on top, and after a restart)'; pin.innerHTML = svg(c.pinned ? 'pinned' : 'pin');
+    row.title = t('clickCopyAgain');
+    const pin = document.createElement('button'); pin.className = 'pin'; pin.title = c.pinned ? t('unpin') : t('pinKeep'); pin.innerHTML = svg(c.pinned ? 'pinned' : 'pin');
     const box = document.createElement('span'); box.className = 'mqbox'; box.dir = 'auto';
     const mq = document.createElement('span'); mq.className = 'mq'; mq.textContent = c.preview + (c.len > c.preview.length + 20 ? '…' : '');
     box.appendChild(mq);
     const tm = document.createElement('span'); tm.className = 'tm dim';
-    const x = document.createElement('button'); x.className = 'x'; x.title = 'Remove'; x.innerHTML = svg('close');
+    const x = document.createElement('button'); x.className = 'x'; x.title = t('remove'); x.innerHTML = svg('close');
     if (c.kind === 'image') {       // a copied picture: its thumbnail and size
       const im = document.createElement('img'); im.className = 'thumb'; im.src = 'data:image/png;base64,' + c.thumb; im.draggable = false;
       box.classList.add('dim'); tm.innerHTML = '';
       row.append(pin, im, box, tm, x);
     } else {
-      tm.textContent = c.len > 999 ? Math.round(c.len / 1000) + 'k' : c.len; tm.title = c.len + ' characters';
+      tm.textContent = c.len > 999 ? Math.round(c.len / 1000) + 'k' : c.len; tm.title = t('chars', { n: c.len });
       row.append(pin, box, tm, x);
     }
     row.addEventListener('mouseenter', () => startMarquee(box));
     row.addEventListener('mouseleave', () => stopMarquee(box));
-    row.addEventListener('click', () => { window.mimo.clipCopy(c.id); flash('Copied — paste with Ctrl+V'); });
+    row.addEventListener('click', () => { window.mimo.clipCopy(c.id); flash(t('copiedPaste')); });
     pin.addEventListener('click', (e) => { e.stopPropagation(); window.mimo.clipPin(c.id); });
     x.addEventListener('click', (e) => { e.stopPropagation(); window.mimo.clipRemove(c.id); });
     stackList.appendChild(row);
@@ -483,14 +489,15 @@ function renderStack() {
   if (st.stackKind === 'settings') { renderSettings(); return; }
   if (st.stackKind === 'speedo') { renderSpeedo(); return; }
   if (st.stackKind === 'weather') { renderWeather(); return; }
+  if (st.stackKind.startsWith('plugin:')) { renderPlugin(st.stackKind.slice(7)); return; }
   if (st.stackKind === 'events') { renderEvents(); return; }
   if (st.stackKind === 'lyrics') { renderLyrics(); return; }
   if (st.stackKind === 'stats') { renderStats(); return; }
   if (st.stackKind === 'tour') { renderTour(); return; }
-  $('#stack-clear').textContent = 'Clear all';
+  $('#stack-clear').textContent = t('clearAll');
   $('#stack-clear').classList.toggle('hidden', !st.history.length);
   if (!st.history.length) {
-    const e = document.createElement('div'); e.className = 'row empty'; e.textContent = 'No notifications';
+    const e = document.createElement('div'); e.className = 'row empty'; e.textContent = t('noNotifications');
     stackList.appendChild(e); return;
   }
   // rows from the same app standing next to each other share one header: the app name, how many, and a
@@ -505,7 +512,7 @@ function renderStack() {
       const ic = document.createElement('div'); ic.className = 'ic'; paintIcon(ic, group[0]);
       const app = document.createElement('span'); app.className = 'app'; app.textContent = group[0].app;
       const count = document.createElement('span'); count.className = 'dim gcount'; count.textContent = group.length;
-      const x = document.createElement('button'); x.className = 'x'; x.title = 'Clear ' + group[0].app; x.innerHTML = svg('close');
+      const x = document.createElement('button'); x.className = 'x'; x.title = t('clearGroup', { app: group[0].app }); x.innerHTML = svg('close');
       x.addEventListener('click', (e) => {
         e.stopPropagation();
         group.forEach((n) => window.mimo.dismiss(n.id));
@@ -526,7 +533,7 @@ function renderStack() {
       mq.appendChild(document.createTextNode((n.body || '').replace(/\s+/g, ' ')));
       box.appendChild(mq);
       const tm = document.createElement('span'); tm.className = 'tm dim'; tm.textContent = rel(n.ts);
-      const x = document.createElement('button'); x.className = 'x'; x.title = 'Dismiss'; x.innerHTML = svg('close');
+      const x = document.createElement('button'); x.className = 'x'; x.title = t('dismiss'); x.innerHTML = svg('close');
       row.append(ic, box, tm, x);
       row.addEventListener('mouseenter', () => startMarquee(box));
       row.addEventListener('mouseleave', () => stopMarquee(box));
@@ -607,12 +614,12 @@ function setShelf(list) {
   const box = $('#hd-files'); box.textContent = '';
   st.shelf.slice(-5).forEach((f) => {
     const el = document.createElement('div'); el.className = 'hf'; el.draggable = true;
-    el.title = f.name + ' — drag it out to drop it somewhere, click to show it in its folder';
+    el.title = t('hfTitle', { name: f.name });
     const ic = document.createElement('span'); ic.className = 'ic';
     if (f.icon) ic.style.backgroundImage = `url(data:image/png;base64,${f.icon})`; else ic.innerHTML = svg('file');
     el.appendChild(ic);
     if (n === 1) { const nm = document.createElement('span'); nm.className = 'nm'; nm.dir = 'auto'; nm.textContent = f.name; el.appendChild(nm); }
-    const rm = document.createElement('button'); rm.className = 'rm'; rm.title = 'Let go of it (the file itself is not touched)'; rm.innerHTML = svg('close');
+    const rm = document.createElement('button'); rm.className = 'rm'; rm.title = t('letGo'); rm.innerHTML = svg('close');
     el.appendChild(rm);
     el.addEventListener('dragstart', (e) => { e.preventDefault(); window.mimo.shelfDrag([f.path]); });
     el.addEventListener('click', () => window.mimo.shelfReveal(f.path));
@@ -646,7 +653,7 @@ document.addEventListener('drop', async (e) => {
   if (!files.length && plain && !uriList.trim() && !/<img/i.test(html)) {
     // a piece of text dragged onto the pill becomes a note
     setNotes(await window.mimo.noteSave(null, plain.slice(0, 5000), 0)); bump();
-    showHud('jot', 'Noted', plain.replace(/\s+/g, ' '), 1900);
+    showHud('jot', t('noted'), plain.replace(/\s+/g, ' '), 1900);
     return;
   }
   const found = await window.mimo.pathsFor(files);
@@ -662,8 +669,8 @@ document.addEventListener('drop', async (e) => {
   for (const u of urls.slice(0, 5)) list = await window.mimo.shelfAddUrl(u);
   setShelf(list); bump();
   const added = list.length - before;
-  if (added > 0) showHud('tray', added === 1 ? 'Holding' : 'Holding ' + added + ' files', added === 1 ? list[list.length - 1].name : 'drag them out from here', 1900);
-  else showHud('tray', "Can't hold that", 'only files and pictures', 2000, 'faded');
+  if (added > 0) showHud('tray', added === 1 ? t('holding') : t('holdingN', { n: added }), added === 1 ? list[list.length - 1].name : t('dragThemOut'), 1900);
+  else showHud('tray', t('cantHold'), t('onlyFiles'), 2000, 'faded');
 });
 // While a file is on its way out, the pill and the list stay exactly as they are.
 window.mimo.onShelfDragging((on) => {
@@ -703,7 +710,10 @@ function setArt(b64) {
   if (!b64) { art.style.backgroundImage = ''; art.innerHTML = svg('note'); return; }
   const url = `data:image/png;base64,${b64}`;
   const img = new Image();
-  img.onload = () => { art.style.backgroundImage = `url(${url})`; art.innerHTML = ''; };
+  img.onload = () => {
+    art.style.backgroundImage = `url(${url})`; art.innerHTML = '';
+    if (art.animate) art.animate([{ opacity: .25, transform: 'scale(.88)' }, { opacity: 1, transform: 'scale(1)' }], { duration: 260, easing: 'ease-out' });   // a soft crossfade on track change
+  };
   img.onerror = () => setArt(null);
   img.src = url;
 }
@@ -718,7 +728,7 @@ function onMedia(m) {
     const justSeeked = Date.now() - (st.seekAt || 0) < 1500 && m.key === was.key;     // the player has not caught up yet
     st.media = { ...m, at: performance.now(), video: m.kind === 'Video' || VIDEO_APPS.test(m.app || '') };
     if (justSeeked) { st.media.pos = was.pos; st.media.at = was.at; }
-    $('#m-title').textContent = m.title || 'Unknown title';
+    $('#m-title').textContent = m.title || t('unknownTitle');
     if (!st.scrubbing) $('#m-artist').textContent = m.artist || '';
     if (musicOn()) {
       // the pill shows the track for ~3s when it starts playing or the song changes — long enough to
@@ -789,34 +799,40 @@ window.mimo.onHelper((m) => {
   else if (m.t === 'bt') {
     if (!st.deviceAlerts) return;
     const audio = /bud|pod|head|ear|speaker|sound|audio|jbl|sony|bose|beats|wh-|wf-|anker|jabra/i.test(m.name);
-    showHud(audio ? 'headphones' : 'bluetooth', m.name, m.on ? 'Connected' : 'Disconnected', 2600, m.on ? 'blue pop' : 'faded');
+    showHud(audio ? 'headphones' : 'bluetooth', m.name, m.on ? t('btConnected') : t('btDisconnected'), 2600, m.on ? 'blue pop' : 'faded');
   }
   else if (m.t === 'update') {
     st.update = m.version; st.available = null; gearBadge.classList.add('on');
-    showNotif({ app: 'Update', title: 'Version ' + m.version + ' is ready', body: 'click to install now (it also installs by itself when you step away)', action: 'update', long: true });
+    showNotif({ app: t('updateApp'), title: t('versionReady', { v: m.version }), body: t('clickInstallLong'), action: 'update', long: true });
     if (st.stackOpen && st.stackKind === 'settings') renderStack();
   }
   else if (m.t === 'updateAvailable') {   // "Update automatically" is off: a newer release is out there
     st.available = m.version; gearBadge.classList.add('on');
-    if (!m.quiet) showNotif({ app: 'Update', title: 'Version ' + m.version + ' is available', body: 'click to install now', action: 'update', long: true });
+    if (!m.quiet) showNotif({ app: t('updateApp'), title: t('versionAvailable', { v: m.version }), body: t('clickInstall'), action: 'update', long: true });
     if (st.stackOpen && st.stackKind === 'settings') renderStack();
   }
-  else if (m.t === 'updated') showNotif({ app: 'Update', title: 'MIMO was updated to ' + m.version, body: "click to see what's new", action: 'whatsnew', version: m.version, long: true });
+  else if (m.t === 'updated') showNotif({ app: t('updateApp'), title: t('wasUpdated', { v: m.version }), body: t('whatsNew'), action: 'whatsnew', version: m.version, long: true });
   else if (m.t === 'net') {
     const was = st.net; st.net = { online: !!m.online, vpn: m.vpn || '', proxy: !!m.proxy }; paintStatus();
     if (m.first) return;
-    if (was.online !== st.net.online) showHud(st.net.online ? 'wifi' : 'wifioff', 'Internet', st.net.online ? 'Back online' : 'No connection', 2800, st.net.online ? 'green pop' : 'red pop');
-    else if (was.vpn !== st.net.vpn) showHud('shield', 'VPN', st.net.vpn ? 'On · ' + st.net.vpn : 'Off', 2600, st.net.vpn ? 'green pop' : 'faded');
-    else if (was.proxy !== st.net.proxy) showHud('shield', 'Proxy', st.net.proxy ? 'On' : 'Off', 2200, st.net.proxy ? 'green pop' : 'faded');
+    if (was.online !== st.net.online) showHud(st.net.online ? 'wifi' : 'wifioff', t('internet'), st.net.online ? t('backOnline') : t('noConnection'), 2800, st.net.online ? 'green pop' : 'red pop');
+    else if (was.vpn !== st.net.vpn) showHud('shield', 'VPN', st.net.vpn ? t('onWord') + ' · ' + st.net.vpn : t('offWord'), 2600, st.net.vpn ? 'green pop' : 'faded');
+    else if (was.proxy !== st.net.proxy) showHud('shield', t('proxy'), st.net.proxy ? t('onWord') : t('offWord'), 2200, st.net.proxy ? 'green pop' : 'faded');
   }
   else if (m.t === 'sensors') {
     const was = st.sensors; st.sensors = { mic: m.mic || [], cam: m.cam || [] }; paintStatus();
-    if (st.sensors.cam.length && !was.cam.length) showHud('cam', 'Camera', 'in use · ' + st.sensors.cam[0], 2600, 'green pop');
-    if (st.sensors.mic.length && !was.mic.length) showHud('mic', 'Microphone', 'in use · ' + st.sensors.mic[0], 2600, 'amber pop');
+    if (st.sensors.cam.length && !was.cam.length) showHud('cam', t('camera'), t('inUse', { n: st.sensors.cam[0] }), 2600, 'green pop');
+    if (st.sensors.mic.length && !was.mic.length) showHud('mic', t('mic'), t('inUse', { n: st.sensors.mic[0] }), 2600, 'amber pop');
   }
   else if (m.t === 'weather') { st.weather = m; paintStatus(); }
   else if (m.t === 'events') { st.events = m; if (st.stackOpen && st.stackKind === 'events') renderStack(); }
-  else if (m.t === 'eventSoon') showHud('cal', 'Soon · ' + m.time, m.title, 6000, 'amber pop');
+  else if (m.t === 'eventSoon') showHud('cal', t('soon', { time: m.time }), m.title, 6000, 'amber pop');
+  else if (m.t === 'pluginSpecs') { st.pluginSpecs = m.specs || []; renderPluginTags(); if (st.stackOpen && st.stackKind === 'settings') renderStack(); }
+  else if (m.t === 'plugin') {
+    st.plugins[m.id] = m;
+    renderPluginTags();
+    if (st.stackOpen && st.stackKind === 'plugin:' + m.id) renderStack();
+  }
   else if (m.t === 'lyrics') { st.lyrics = m; st.lyrAt = -1; if (st.stackOpen && st.stackKind === 'lyrics') renderStack(); }
   else if (m.t === 'stats') { st.stats = m; paintStats(); }
   else if (m.t === 'vol') {
@@ -834,39 +850,39 @@ window.mimo.onHelper((m) => {
 function paintStatus() {
   const d = $('#dots'), s = st.sensors, n = st.net;
   d.innerHTML = (s.cam.length ? '<i class="cam"></i>' : '') + (s.mic.length ? '<i class="mic"></i>' : '') + (n.online ? '' : '<i class="off"></i>');
-  d.title = [s.cam.length ? 'Camera: ' + s.cam.join(', ') : '', s.mic.length ? 'Microphone: ' + s.mic.join(', ') : '', n.online ? '' : 'No internet'].filter(Boolean).join(' · ');
+  d.title = [s.cam.length ? t('camColon') + s.cam.join(', ') : '', s.mic.length ? t('micColon') + s.mic.join(', ') : '', n.online ? '' : t('noInternet')].filter(Boolean).join(' · ');
   const tn = $('#t-net');
-  tn.textContent = !n.online ? 'Offline' : n.vpn ? 'VPN' : n.proxy ? 'Proxy' : '';
-  tn.title = n.vpn ? 'VPN: ' + n.vpn : n.proxy ? 'A system proxy is on' : '';
+  tn.textContent = !n.online ? t('offline') : n.vpn ? 'VPN' : n.proxy ? t('proxy') : '';
+  tn.title = n.vpn ? t('vpnColon') + n.vpn : n.proxy ? t('proxyOn') : '';
   tn.className = 'tag' + (!n.online ? ' bad' : '');
   const tw = $('#t-weather'), w = st.weather;
   const show = st.weatherOn !== false && !!w;
   tw.style.display = show ? '' : 'none';
   if (show) {
     const [, label] = wmo(w.code);
-    tw.textContent = Math.round(w.temp) + '° · ' + label;
-    tw.title = (w.name || 'Weather') + ' — click for the days ahead';
+    tw.textContent = Math.round(w.temp) + '° · ' + t(label);
+    tw.title = t('weatherTipFull', { name: w.name || t('weatherWord') });
   }
 }
 
-// The WMO weather codes Open-Meteo sends, mapped to the pill's own icons and words.
+// The WMO weather codes Open-Meteo sends, mapped to the pill's own icons and i18n keys (t() gives the words).
 const WMO = [
-  [0, 'sun', 'Clear'], [1, 'sun', 'Mostly clear'], [2, 'cloud', 'Partly cloudy'], [3, 'cloud', 'Cloudy'],
-  [45, 'fog', 'Fog'], [48, 'fog', 'Icy fog'],
-  [51, 'rain', 'Drizzle'], [53, 'rain', 'Drizzle'], [55, 'rain', 'Heavy drizzle'], [56, 'rain', 'Freezing drizzle'], [57, 'rain', 'Freezing drizzle'],
-  [61, 'rain', 'Light rain'], [63, 'rain', 'Rain'], [65, 'rain', 'Heavy rain'], [66, 'rain', 'Freezing rain'], [67, 'rain', 'Freezing rain'],
-  [71, 'snow', 'Light snow'], [73, 'snow', 'Snow'], [75, 'snow', 'Heavy snow'], [77, 'snow', 'Snow grains'],
-  [80, 'rain', 'Light showers'], [81, 'rain', 'Showers'], [82, 'rain', 'Heavy showers'], [85, 'snow', 'Snow showers'], [86, 'snow', 'Snow showers'],
-  [95, 'storm', 'Thunderstorm'], [96, 'storm', 'Storm with hail'], [99, 'storm', 'Storm with hail'],
+  [0, 'sun', 'wClear'], [1, 'sun', 'wMostlyClear'], [2, 'cloud', 'wPartly'], [3, 'cloud', 'wCloudy'],
+  [45, 'fog', 'wFog'], [48, 'fog', 'wIcyFog'],
+  [51, 'rain', 'wDrizzle'], [53, 'rain', 'wDrizzle'], [55, 'rain', 'wHeavyDrizzle'], [56, 'rain', 'wFreezingDrizzle'], [57, 'rain', 'wFreezingDrizzle'],
+  [61, 'rain', 'wLightRain'], [63, 'rain', 'wRain'], [65, 'rain', 'wHeavyRain'], [66, 'rain', 'wFreezingRain'], [67, 'rain', 'wFreezingRain'],
+  [71, 'snow', 'wLightSnow'], [73, 'snow', 'wSnow'], [75, 'snow', 'wHeavySnow'], [77, 'snow', 'wSnowGrains'],
+  [80, 'rain', 'wLightShowers'], [81, 'rain', 'wShowers'], [82, 'rain', 'wHeavyShowers'], [85, 'snow', 'wSnowShowers'], [86, 'snow', 'wSnowShowers'],
+  [95, 'storm', 'wStorm'], [96, 'storm', 'wStormHail'], [99, 'storm', 'wStormHail'],
 ];
 function wmo(code) {
   const hit = WMO.find(([c]) => c === code);
-  if (hit) return hit;
-  if (code >= 95) return ['storm', 'Storm'];
-  if (code >= 71) return ['snow', 'Snow'];
-  if (code >= 51) return ['rain', 'Rain'];
-  if (code >= 45) return ['fog', 'Fog'];
-  return ['sun', 'Clear'];
+  if (hit) return hit.slice(1);
+  if (code >= 95) return ['storm', 'wStormWord'];
+  if (code >= 71) return ['snow', 'wSnow'];
+  if (code >= 51) return ['rain', 'wRain'];
+  if (code >= 45) return ['fog', 'wFog'];
+  return ['sun', 'wClear'];
 }
 
 // ------------------------------------------------------------ audio analysis (system loopback)
@@ -1369,10 +1385,16 @@ seekEl.addEventListener('pointercancel', () => endScrub(false));
 
 // ------------------------------------------------------------ clock / date / battery
 const pad = (n) => String(n).padStart(2, '0');
-const fWeek = new Intl.DateTimeFormat('en-GB', { weekday: 'short' });
-const fGreg = new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short' });
+// the weekday / gregorian-date formatters follow the interface language (rebuilt by applyLang)
+let fWeek = new Intl.DateTimeFormat('en-GB', { weekday: 'short' });
+let fGreg = new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short' });
 const fShamsi = new Intl.DateTimeFormat('en-US-u-ca-persian-nu-latn', { day: 'numeric', month: 'long' });
 const fShamsiFa = new Intl.DateTimeFormat('fa-IR-u-ca-persian', { weekday: 'long', day: 'numeric', month: 'long' });
+function buildFormatters() {
+  const loc = window.MI18N.lang() === 'fa' ? 'fa-IR' : 'en-GB';
+  fWeek = new Intl.DateTimeFormat(loc, { weekday: 'short' });
+  fGreg = new Intl.DateTimeFormat(loc, { day: 'numeric', month: 'short' });
+}
 const parts = (f, d) => Object.fromEntries(f.formatToParts(d).map((p) => [p.type, p.value]));
 const CALENDARS = ['gregorian', 'shamsi', 'shamsi-fa', 'both'];
 function dateText(d) {
@@ -1394,7 +1416,7 @@ function tick() {
   const left = timer.running ? Math.max(0, timer.endAt - Date.now()) : timer.left;
   if (timer.running && left <= 0) {
     timer.running = false; timer.left = 0; timer.done = true;
-    beep(); showNotif({ app: 'Timer', title: 'Time is up', body: '' });
+    beep(); showNotif({ app: t('timerApp'), title: t('timeIsUp'), body: '' });
   }
   const it = $('#i-time');
   it.textContent = timer.running ? mmss(left) : hm;
@@ -1417,13 +1439,13 @@ if (navigator.getBattery) {
     b.addEventListener('chargingchange', () => {       // charger plugged in / pulled out
       if (!st.deviceAlerts) return;
       const pct = Math.round(b.level * 100) + '%';
-      if (b.charging) showHud('bolt', 'Charging', pct, 2600, 'green pop'); else showHud('plug', 'On battery', pct, 2400, 'faded');
+      if (b.charging) showHud('bolt', t('charging'), pct, 2600, 'green pop'); else showHud('plug', t('onBattery'), pct, 2400, 'faded');
     });
     const paint = () => {
       const pct = Math.round(b.level * 100);
       // desktops report a permanently full, charging battery — don't show that
       $('#t-bat').textContent = b.charging && pct === 100 ? '' : pct + '%' + (b.charging ? ' ⚡' : '');
-      if (!b.charging && b.level <= 0.15 && !warned) { warned = true; showNotif({ app: 'Battery', title: 'Low battery', body: pct + '% left — plug in your charger' }); }
+      if (!b.charging && b.level <= 0.15 && !warned) { warned = true; showNotif({ app: t('batteryApp'), title: t('lowBattery'), body: t('plugCharger', { p: pct }) }); }
       if (b.charging) warned = false;
     };
     paint(); b.addEventListener('levelchange', paint); b.addEventListener('chargingchange', paint);
@@ -1596,7 +1618,7 @@ function parseReminder(raw) {
 }
 const fmtWhen = (ts) => {
   const d = new Date(ts), left = ts - Date.now();
-  if (left > 0 && left < 3600000) return 'in ' + Math.max(1, Math.round(left / 60000)) + 'm';
+  if (left > 0 && left < 3600000) return t('inXm', { n: Math.max(1, Math.round(left / 60000)) });
   const day = d.toDateString() === new Date().toDateString() ? '' : fWeek.format(d) + ' ';
   return day + pad(d.getHours()) + ':' + pad(d.getMinutes());
 };
@@ -1608,40 +1630,40 @@ window.mimo.onNotes(setNotes);
 window.mimo.notesGet().then(setNotes);
 async function quickNote(edit) {
   setStack(true, 'notes');
-  const v = await ask({ icon: 'jot', placeholder: 'Jot it down…  “call Ali in 20m” reminds you', value: edit ? edit.text : '', hint: '↵' });
+  const v = await ask({ icon: 'jot', placeholder: t('notePlaceholder'), value: edit ? edit.text : '', hint: '↵' });
   if (v === null || !v.trim()) return;
   const r = parseReminder(v);
   setNotes(await window.mimo.noteSave(edit ? edit.id : null, r.text, r.at));
   setStack(false);
-  showHud(r.at ? 'bell' : 'jot', r.at ? 'Reminder ' + fmtWhen(r.at) : 'Noted', r.text, 2000, 'pop');
+  showHud(r.at ? 'bell' : 'jot', r.at ? t('reminderX', { when: fmtWhen(r.at) }) : t('noted'), r.text, 2000, 'pop');
   emote('happy', 1200);
 }
 function renderNotes() {
   $('#stack-clear').classList.add('hidden');
   if (!st.notes.length) {
-    const e = document.createElement('div'); e.className = 'row empty wide'; e.textContent = 'Nothing noted yet — type and press Enter';
+    const e = document.createElement('div'); e.className = 'row empty wide'; e.textContent = t('notesEmpty');
     stackList.appendChild(e); return;
   }
   st.notes.forEach((n, i) => {
     const row = document.createElement('div'); row.className = 'row clip note' + (n.pinned ? ' pinned' : '') + (n.remind && n.fired ? ' done' : ''); row.style.setProperty('--i', Math.min(i, 6));
-    row.title = 'Click to copy — double-click to edit';
-    const pin = document.createElement('button'); pin.className = 'pin'; pin.title = n.pinned ? 'Unpin' : 'Pin on top'; pin.innerHTML = svg(n.pinned ? 'pinned' : 'pin');
+    row.title = t('noteRowTitle');
+    const pin = document.createElement('button'); pin.className = 'pin'; pin.title = n.pinned ? t('unpin') : t('pinTop'); pin.innerHTML = svg(n.pinned ? 'pinned' : 'pin');
     const box = document.createElement('span'); box.className = 'mqbox'; box.dir = 'auto';
     const mq = document.createElement('span'); mq.className = 'mq'; mq.textContent = n.text.replace(/\s+/g, ' ');
     box.appendChild(mq);
     row.append(pin, box);
     if (n.remind) {
       const chip = document.createElement('span'); chip.className = 'chip' + (n.fired ? ' off' : ''); chip.innerHTML = svg('bell') + fmtWhen(n.remind);
-      chip.title = n.fired ? 'Reminded' : 'Reminder at ' + new Date(n.remind).toLocaleString();
+      chip.title = n.fired ? t('reminded') : t('reminderAt', { t: new Date(n.remind).toLocaleString() });
       row.appendChild(chip);
     }
     const tm = document.createElement('span'); tm.className = 'tm dim'; tm.textContent = rel(n.at);
-    const x = document.createElement('button'); x.className = 'x'; x.title = 'Delete'; x.innerHTML = svg('close');
+    const x = document.createElement('button'); x.className = 'x'; x.title = t('deleteWord'); x.innerHTML = svg('close');
     row.append(tm, x);
     row.addEventListener('mouseenter', () => startMarquee(box));
     row.addEventListener('mouseleave', () => stopMarquee(box));
     let clickT = 0;
-    row.addEventListener('click', () => { clearTimeout(clickT); clickT = setTimeout(() => { window.mimo.copy(n.text); flash('Copied — paste with Ctrl+V'); }, 230); });
+    row.addEventListener('click', () => { clearTimeout(clickT); clickT = setTimeout(() => { window.mimo.copy(n.text); flash(t('copiedPaste')); }, 230); });
     row.addEventListener('dblclick', () => { clearTimeout(clickT); quickNote(n); });
     pin.addEventListener('click', (e) => { e.stopPropagation(); window.mimo.notePin(n.id).then(setNotes); });
     x.addEventListener('click', (e) => { e.stopPropagation(); window.mimo.noteRemove(n.id).then(setNotes); });
@@ -1655,7 +1677,7 @@ setInterval(() => {
     if (!n.remind || n.fired || n.remind > now) continue;
     n.fired = true;
     window.mimo.noteFired(n.id).then(setNotes);
-    beep(); showNotif({ app: 'Reminder', title: n.text.replace(/\s+/g, ' '), body: '', long: true, action: 'note' });
+    beep(); showNotif({ app: t('reminderApp'), title: n.text.replace(/\s+/g, ' '), body: '', long: true, action: 'note' });
   }
 }, 3000);
 
@@ -1702,33 +1724,33 @@ $('#g-ok').addEventListener('click', async () => {
 // that only name it: leaving them halfway, or for good, never loses the password.
 async function saveLogin(pass, generated) {
   if (!generated) {
-    pass = await ask({ icon: 'key', placeholder: 'Type or paste the password', secret: true, hint: '1/3', keep: true, stay: true });
+    pass = await ask({ icon: 'key', placeholder: t('typePass'), secret: true, hint: '1/3', keep: true, stay: true });
     if (!pass) { if (pass !== null) closeTyping(true); return; }
   }
-  const guess = guessSite(st.ctx) || 'Untitled';
+  const guess = guessSite(st.ctx) || t('untitled');
   const id = await window.mimo.vaultSave(guess, '', pass);
   if (!id) {
     closeTyping(true);
-    showHud('key', 'Could not save', generated ? 'the password is still on your clipboard' : '', 3200, 'faded');
+    showHud('key', t('couldNotSave'), generated ? t('passOnClipboard') : '', 3200, 'faded');
     return;
   }
   const n = generated ? 2 : 3;
-  const site = await ask({ icon: 'key', placeholder: 'Saved. What is it for?  (site or app)', value: guess === 'Untitled' ? '' : guess, hint: (n - 1) + '/' + n, keep: true, stay: true });
-  if (site === null) { showHud('key', 'Saved as ' + guess, 'rename it any time under Passwords', 2800, 'green'); return; }
+  const site = await ask({ icon: 'key', placeholder: t('savedFor'), value: guess === t('untitled') ? '' : guess, hint: (n - 1) + '/' + n, keep: true, stay: true });
+  if (site === null) { showHud('key', t('savedAs', { name: guess }), t('renameAnytime'), 2800, 'green'); return; }
   const name = site.trim() || guess;
-  const user = await ask({ icon: 'user', placeholder: 'Email or username', value: st.lastUser, hint: n + '/' + n, stay: true });
+  const user = await ask({ icon: 'user', placeholder: t('emailUser'), value: st.lastUser, hint: n + '/' + n, stay: true });
   const ok = await window.mimo.vaultEdit(id, name, user === null ? '' : user);
-  showHud('key', 'Saved', name + (ok ? '' : ' · the name could not be changed') + (generated ? ' · password is on your clipboard' : ''), 2600, ok ? 'green pop' : 'faded');
+  showHud('key', t('savedWord'), name + (ok ? '' : ' · ' + t('nameNotChanged')) + (generated ? ' · ' + t('passOnClipShort') : ''), 2600, ok ? 'green pop' : 'faded');
   emote('happy', 1200);
 }
 // rename an entry / fix its username (the password stays)
 async function editLogin(v) {
-  const site = await ask({ icon: 'key', placeholder: 'Site or app', value: v.site, hint: '1/2', keep: true, stay: true });
+  const site = await ask({ icon: 'key', placeholder: t('siteOrApp'), value: v.site, hint: '1/2', keep: true, stay: true });
   if (site === null) return;
-  const user = await ask({ icon: 'user', placeholder: 'Email or username', value: v.user, hint: '2/2', stay: true });
+  const user = await ask({ icon: 'user', placeholder: t('emailUser'), value: v.user, hint: '2/2', stay: true });
   if (user === null) return;
   const ok = await window.mimo.vaultEdit(v.id, site, user);
-  showHud('key', ok ? 'Updated' : 'Could not update', site.trim() || 'Untitled', 2000, ok ? 'green' : 'faded');
+  showHud('key', ok ? t('updatedWord') : t('couldNotUpdate'), site.trim() || t('untitled'), 2000, ok ? 'green' : 'faded');
 }
 // The list stays open while you go back and forth to the page you are signing in to. A search box on top
 // narrows it; Enter copies the password of the highlighted row, Shift+Enter its username, Esc clears / closes.
@@ -1750,7 +1772,7 @@ function markSel() {
 }
 async function copyLogin(v, what) {
   const ok = await window.mimo.vaultCopy(v.id, what);
-  flash(!ok ? 'Could not copy' : what === 'user' ? 'Username copied' : 'Password copied — clears in 30s');
+  flash(!ok ? t('couldNotCopy') : what === 'user' ? t('usernameCopied') : t('passCopied'));
   if (!ok) return;
   const btn = stackList.querySelector(`.row.vault[data-id="${v.id}"] .act.${what}`);
   if (btn) {
@@ -1764,8 +1786,8 @@ function vaultHead() {
   stackHead.dataset.kind = 'vault'; stackHead.textContent = ''; stackHead.classList.add('on');
   const box = document.createElement('label'); box.className = 'search'; box.innerHTML = svg('search');
   const q = document.createElement('input'); q.id = 'v-search'; q.type = 'text'; q.spellcheck = false; q.autocomplete = 'off'; q.dir = 'auto';
-  q.placeholder = 'Search'; q.value = st.vaultQ;
-  box.title = 'Enter copies the password · Shift+Enter the username · Esc clears';
+  q.placeholder = t('search'); q.value = st.vaultQ;
+  box.title = t('searchTitle');
   box.appendChild(q);
   box.addEventListener('pointerdown', () => { holdKeys(() => q.focus()); markSel(); });
   q.addEventListener('focus', () => { holdKeys(); markSel(); });
@@ -1787,35 +1809,35 @@ function vaultHead() {
     const b = document.createElement('button'); b.className = 'pillbtn'; b.title = title;
     b.innerHTML = svg(icon) + (label ? `<span>${label}</span>` : ''); b.addEventListener('click', fn); return b;
   };
-  const g = btn('bolt', 'New', 'Make a new password', openGen);
-  const a = btn('plus', 'Add', 'Save a password you already have', () => { setStack(false); saveLogin('', false); });
-  const x = btn('close', '', 'Close the passwords', () => setStack(false)); x.classList.add('round');
+  const g = btn('bolt', t('newBtn'), t('newTitle'), openGen);
+  const a = btn('plus', t('addBtn'), t('addTitle'), () => { setStack(false); saveLogin('', false); });
+  const x = btn('close', '', t('closeVault'), () => setStack(false)); x.classList.add('round');
   stackHead.append(box, g, a, x);
 }
 function renderVault() {
   $('#stack-clear').classList.add('hidden');
   vaultHead();
   const note = (text) => { const e = document.createElement('div'); e.className = 'row empty wide'; e.textContent = text; stackList.appendChild(e); };
-  if (st.vault.locked) note('Saved passwords could not be opened on this account');
+  if (st.vault.locked) note(t('vaultLocked'));
   const list = vaultFound();
   st.vaultSel = clamp(st.vaultSel, 0, Math.max(0, list.length - 1));
-  if (!st.vault.items.length) { if (!st.vault.locked) note('No passwords yet — New makes one'); return; }
-  if (!list.length) { note('Nothing matches “' + st.vaultQ.trim() + '”'); return; }
+  if (!st.vault.items.length) { if (!st.vault.locked) note(t('vaultEmpty')); return; }
+  if (!list.length) { note(t('nothingMatches', { q: st.vaultQ.trim() })); return; }
   const showSel = !!(st.vaultQ.trim() || st.keys);
   list.forEach((v, i) => {
     const row = document.createElement('div'); row.className = 'row vault' + (showSel && i === st.vaultSel ? ' sel' : ''); row.style.setProperty('--i', Math.min(i + 1, 6));
     row.dataset.id = v.id;
-    row.title = 'Click to copy the password (it leaves the clipboard after 30 seconds)';
+    row.title = t('vaultRowTitle');
     const ic = document.createElement('div'); ic.className = 'ic'; ic.textContent = (v.site || '•').trim().charAt(0).toUpperCase();
     const box = document.createElement('span'); box.className = 'mqbox'; box.dir = 'auto';
-    const mq = document.createElement('span'); mq.className = 'mq'; const b = document.createElement('b'); b.textContent = v.site || 'Untitled'; mq.appendChild(b);
+    const mq = document.createElement('span'); mq.className = 'mq'; const b = document.createElement('b'); b.textContent = v.site || t('untitled'); mq.appendChild(b);
     box.appendChild(mq);
     const who = document.createElement('span'); who.className = 'who dim'; who.textContent = v.user; who.dir = 'ltr';
-    const cu = document.createElement('button'); cu.className = 'act user'; cu.title = 'Copy the email / username'; cu.innerHTML = svg('user');
-    const cp = document.createElement('button'); cp.className = 'act pass'; cp.title = 'Copy the password'; cp.innerHTML = svg('key');
-    const ey = document.createElement('button'); ey.className = 'act'; ey.title = 'Show the password for a moment'; ey.innerHTML = svg('eye');
-    const ed = document.createElement('button'); ed.className = 'act'; ed.title = 'Rename / change the username'; ed.innerHTML = svg('edit');
-    const x = document.createElement('button'); x.className = 'x show'; x.title = 'Delete'; x.innerHTML = svg('close');
+    const cu = document.createElement('button'); cu.className = 'act user'; cu.title = t('copyUser'); cu.innerHTML = svg('user');
+    const cp = document.createElement('button'); cp.className = 'act pass'; cp.title = t('copyPass'); cp.innerHTML = svg('key');
+    const ey = document.createElement('button'); ey.className = 'act'; ey.title = t('showPass'); ey.innerHTML = svg('eye');
+    const ed = document.createElement('button'); ed.className = 'act'; ed.title = t('renameEntry'); ed.innerHTML = svg('edit');
+    const x = document.createElement('button'); x.className = 'x show'; x.title = t('deleteWord'); x.innerHTML = svg('close');
     row.append(ic, box, who);
     if (v.user) row.appendChild(cu);
     row.append(cp, ey, ed, x);
@@ -1835,7 +1857,7 @@ function renderVault() {
     x.addEventListener('click', (e) => {       // two clicks: the first one only arms it
       e.stopPropagation();
       if (x.classList.contains('sure')) { window.mimo.vaultRemove(v.id); return; }
-      x.classList.add('sure'); x.title = 'Click again to delete'; clearTimeout(sureT); sureT = setTimeout(() => x.classList.remove('sure'), 2500);
+      x.classList.add('sure'); x.title = t('clickAgainDelete'); clearTimeout(sureT); sureT = setTimeout(() => x.classList.remove('sure'), 2500);
     });
     stackList.appendChild(row);
   });
@@ -1855,11 +1877,11 @@ window.mimo.onSpeedo((s) => {
   const bt = $('#t-speedo');
   bt.classList.toggle('hidden', !speedo.present);
   bt.classList.toggle('live', speedo.state === 'connected');
-  bt.title = 'Speedo VPN' + (speedo.state === 'connected' && speedo.location ? ' · ' + speedo.location.name : '');
+  bt.title = t('tipSpeedo') + (speedo.state === 'connected' && speedo.location ? ' · ' + speedo.location.name : '');
   if (!speedo.present && st.stackOpen && st.stackKind === 'speedo') setStack(false);
   else if (st.stackOpen && st.stackKind === 'speedo') { const y = stackList.scrollTop; renderStack(); stackList.scrollTop = y; }
   if (was.present && speedo.present && was.state !== speedo.state && (speedo.state === 'connected' || was.state === 'connected'))
-    showHud('shield', 'Speedo', speedo.state === 'connected' ? 'Connected' + (speedo.location ? ' · ' + speedo.location.name : '') : 'Disconnected', 2400, speedo.state === 'connected' ? 'green pop' : 'faded');
+    showHud('shield', 'Speedo', speedo.state === 'connected' ? t('connected') + (speedo.location ? ' · ' + speedo.location.name : '') : t('disconnected'), 2400, speedo.state === 'connected' ? 'green pop' : 'faded');
 });
 window.mimo.speedo('status').then((r) => { if (r && r.ok && r.state && !speedo.present) window.__speedoBoot = r; });
 function renderSpeedo() {
@@ -1869,19 +1891,19 @@ function renderSpeedo() {
   const head = document.createElement('div'); head.className = 'row set sp';
   const lbl = document.createElement('span'); lbl.className = 'lbl';
   const name = document.createElement('b'); name.textContent = s.location ? s.location.name : 'Speedo';
-  const sub = document.createElement('span'); sub.className = 'dim'; sub.textContent = !s.signedIn ? 'Sign in inside Speedo first' : busy ? 'Connecting…' : on ? 'Connected' + (s.ip ? ' · ' + s.ip : '') : 'Not connected';
-  lbl.append(name, sub);
-  const sw = document.createElement('button'); sw.className = 'sw big' + (on ? ' on' : '') + (busy ? ' busy' : ''); sw.title = on || busy ? 'Disconnect' : 'Connect';
+  const sub = document.createElement('span'); sub.className = 'dim'; sub.textContent = !s.signedIn ? t('signInFirst') : busy ? t('connecting') : on ? t('connected') + (s.ip ? ' · ' + s.ip : '') : t('notConnected');
+  l.append(name, sub);
+  const sw = document.createElement('button'); sw.className = 'sw big' + (on ? ' on' : '') + (busy ? ' busy' : ''); sw.title = on || busy ? t('disconnect') : t('connect');
   sw.addEventListener('click', () => {
     if (!s.signedIn) { window.mimo.speedo('show'); return; }
     sw.classList.add('busy'); sw.classList.toggle('on');
-    window.mimo.speedo(on || busy ? 'disconnect' : 'connect').then((r) => { if (r && r.ok === false) showHud('shield', 'Speedo', r.error || 'Could not do that', 2600, 'red'); });
+    window.mimo.speedo(on || busy ? 'disconnect' : 'connect').then((r) => { if (r && r.ok === false) showHud('shield', 'Speedo', r.error || t('couldNotDo'), 2600, 'red'); });
   });
   head.append(code(s.location && s.location.code), lbl, sw);
   stackList.appendChild(head);
   if (s.firewall !== undefined && s.signedIn) {
     const fw = document.createElement('div'); fw.className = 'row set';
-    const l = document.createElement('span'); l.className = 'lbl'; l.textContent = 'Firewall (block traffic outside the VPN)';
+    const l = document.createElement('span'); l.className = 'lbl'; l.textContent = t('firewall');
     const f = document.createElement('button'); f.className = 'sw' + (s.firewall ? ' on' : '');
     f.addEventListener('click', () => { f.classList.toggle('on'); window.mimo.speedo('firewall', { on: !s.firewall }); });
     fw.append(l, f); stackList.appendChild(fw);
@@ -1890,56 +1912,58 @@ function renderSpeedo() {
   const cur = s.location && s.location.id;
   [...spLocs].sort((a, b) => (b.fav ? 1 : 0) - (a.fav ? 1 : 0)).slice(0, 80).forEach((loc, i) => {
     const row = document.createElement('div'); row.className = 'row loc' + (loc.id === cur ? ' cur' : ''); row.style.setProperty('--i', Math.min(i + 2, 6));
-    row.title = loc.id === cur && on ? 'Connected here' : 'Connect to ' + loc.name;
+    row.title = loc.id === cur && on ? t('connectedHere') : t('connectTo', { name: loc.name });
     const box = document.createElement('span'); box.className = 'mqbox'; const b = document.createElement('b'); b.textContent = loc.name; box.appendChild(b);
     row.append(code(loc.code), box);
     if (loc.fav) { const st2 = document.createElement('span'); st2.className = 'dim tm'; st2.textContent = '★'; row.appendChild(st2); }
     if (loc.ping) { const p = document.createElement('span'); p.className = 'dim who'; p.textContent = loc.ping + ' ms'; row.appendChild(p); }
-    row.addEventListener('click', () => { row.classList.add('cur'); window.mimo.speedo('connect', { id: loc.id }).then((r) => { if (r && r.ok === false) showHud('shield', 'Speedo', r.error || 'Could not connect', 2600, 'red'); }); });
+    row.addEventListener('click', () => { row.classList.add('cur'); window.mimo.speedo('connect', { id: loc.id }).then((r) => { if (r && r.ok === false) showHud('shield', 'Speedo', r.error || t('couldNotConnect'), 2600, 'red'); }); });
     stackList.appendChild(row);
   });
 }
 
 // ------------------------------------------------------------ settings, as rows under the pill
+// Labels (and seg options / button texts / units) are i18n keys — t() renders them in the chosen language.
 const SETTINGS_UI = [
-  ['button', 'tour', 'What MIMO can do', 'Show me'],
-  ['toggle', 'autoStart', 'Start with Windows'],
-  ['toggle', 'autoUpdate', 'Update automatically'],
-  ['monitors', 'monitor', 'Screen'],
-  ['toggle', 'weatherOn', 'Weather'],
-  ['button', 'weatherCity', 'Weather city…', 'Set'],
-  ['button', 'calendarFile', 'Calendar file…', 'Set'],
-  ['button', 'events', 'Upcoming events', 'Open'],
-  ['toggle', 'lyricsOn', 'Lyrics for the playing track'],
-  ['toggle', 'statsOn', 'System stats'],
-  ['button', 'stats', 'System stats', 'Open'],
-  ['seg', 'shape', 'Pill shape', [['island', 'Island'], ['notch', 'Notch']]],
-  ['seg', 'face', 'Resting pill shows', [['eyes', 'Eyes'], ['clock', 'Clock']]],
-  ['toggle', 'idleWalk', 'Come out and walk when idle'],
-  ['seg', 'calendar', 'Date', [['gregorian', 'Greg.'], ['shamsi', 'Shamsi'], ['shamsi-fa', 'شمسی'], ['both', 'Both']]],
-  ['toggle', 'autoHide', 'Hide while a window is underneath'],
-  ['toggle', 'hideVideo', 'Stay out of the way for videos'],
-  ['swatch', 'skin', 'Theme', ['black', 'nebula', 'crystal', 'ember', 'reactor', 'venom']],        // cloud, water, lava and ice are parked until they are finished
-  ['toggle', 'musicReact', 'Theme reacts to music'],
-  ['toggle', 'visuals', 'Night sky with music (black theme)'],
-  ['step', 'notifSeconds', 'Notification stays for', 2, 10, 's'],
-  ['button', 'dnd', "Hide Windows' own banners", 'Open'],
-  ['toggle', 'copyPreview', 'Show what was copied'],
-  ['toggle', 'clipHistory', 'Clipboard history'],
-  ['toggle', 'deviceAlerts', 'Charger and Bluetooth'],
-  ['toggle', 'downloadAlerts', 'Finished downloads'],
-  ['toggle', 'shelf', 'File shelf'],
-  ['toggle', 'netAlerts', 'Internet and VPN changes'],
-  ['toggle', 'sensorDot', 'Microphone / camera in use'],
-  ['toggle', 'smartCopy', 'Smart copy: links, sums, dates'],
-  ['toggle', 'noteHotkey', 'Ctrl+Alt+N note · Ctrl+Alt+T text grab'],
+  ['seg', 'lang', 'language', [['en', 'langEn'], ['fa', 'langFa']]],
+  ['button', 'tour', 'sTour', 'showMe'],
+  ['toggle', 'autoStart', 'autoStart'],
+  ['toggle', 'autoUpdate', 'autoUpdate'],
+  ['monitors', 'monitor', 'screen'],
+  ['toggle', 'weatherOn', 'weather'],
+  ['button', 'weatherCity', 'weatherCity', 'set'],
+  ['button', 'calendarFile', 'calendarFile', 'set'],
+  ['button', 'events', 'eventsBtn', 'open'],
+  ['toggle', 'lyricsOn', 'lyrics'],
+  ['toggle', 'statsOn', 'statsOn'],
+  ['button', 'stats', 'statsOn', 'open'],
+  ['seg', 'shape', 'pillShape', [['island', 'calIsland'], ['notch', 'calNotch']]],
+  ['seg', 'face', 'restingShows', [['eyes', 'eyes'], ['clock', 'clock']]],
+  ['toggle', 'idleWalk', 'idleWalk'],
+  ['seg', 'calendar', 'dateWord', [['gregorian', 'calGreg'], ['shamsi', 'calShamsi'], ['shamsi-fa', 'calShamsiFa'], ['both', 'calBoth']]],
+  ['toggle', 'autoHide', 'autoHide'],
+  ['toggle', 'hideVideo', 'hideVideo'],
+  ['swatch', 'skin', 'theme', ['black', 'nebula', 'crystal', 'ember', 'reactor', 'venom']],        // cloud, water, lava and ice are parked until they are finished
+  ['toggle', 'musicReact', 'musicReact'],
+  ['toggle', 'visuals', 'visuals'],
+  ['step', 'notifSeconds', 'notifStays', 2, 10, 'unitS'],
+  ['button', 'dnd', 'dndRow', 'open'],
+  ['toggle', 'copyPreview', 'copyPreview'],
+  ['toggle', 'clipHistory', 'clipHistory'],
+  ['toggle', 'deviceAlerts', 'chargerBt'],
+  ['toggle', 'downloadAlerts', 'downloadAlerts'],
+  ['toggle', 'shelf', 'shelf'],
+  ['toggle', 'netAlerts', 'netAlerts'],
+  ['toggle', 'sensorDot', 'sensorDot'],
+  ['toggle', 'smartCopy', 'smartCopy'],
+  ['toggle', 'noteHotkey', 'hotkeys'],
 ];
 // The update notification / row / button all end up here. An announced update ("Update automatically" off)
 // is not downloaded yet, so the click fetches it first, then installs. feedback(text) reports into the
 // button that started this.
 async function installUpdate(feedback) {
   if (st.update) { window.mimo.updateInstall(); return; }
-  if (feedback) feedback('Downloading…');
+  if (feedback) feedback(t('downloading'));
   const r = await window.mimo.updateCheck();
   if (r.startsWith('ready')) {
     st.update = r.slice(6); st.available = null; gearBadge.classList.add('on');
@@ -1947,52 +1971,53 @@ async function installUpdate(feedback) {
     window.mimo.updateInstall();
     return;
   }
-  if (feedback) feedback(r === 'none' ? 'Nothing to install' : 'Could not check');
+  if (feedback) feedback(r === 'none' ? t('nothingToInstall') : t('couldNotCheck'));
 }
 
 // ------------------------------------------------------------ weather and calendar, as stacks under the pill
-function dayName(iso) {   // "2026-11-20" → "Fri 20 Nov"
+function dayName(iso) {   // "2026-11-20" → "Fri 20 Nov" (or the same in Persian when the UI is FA)
   const [y, m, d] = iso.split('-').map(Number);
-  return new Date(y, m - 1, d).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
+  return new Date(y, m - 1, d).toLocaleDateString(window.MI18N.lang() === 'fa' ? 'fa-IR' : 'en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
 }
 function renderWeather() {
   $('#stack-clear').classList.add('hidden');
   const w = st.weather;
   if (!w) {
-    const e = document.createElement('div'); e.className = 'row empty'; e.textContent = 'No report yet — pick a city in Settings';
+    const e = document.createElement('div'); e.className = 'row empty'; e.textContent = t('noReport');
     stackList.appendChild(e); return;
   }
-  const [ic, label] = wmo(w.code);
+  const [ic, wkey] = wmo(w.code);
   const now = document.createElement('div'); now.className = 'row set sp wx';
   const box = document.createElement('div'); box.className = 'ic plain'; box.innerHTML = svg(ic);
   const l = document.createElement('span'); l.className = 'lbl';
-  const b = document.createElement('b'); b.textContent = Math.round(w.temp) + '° · ' + label;
-  const d = document.createElement('span'); d.className = 'dim'; d.textContent = w.name || 'Now';
+  const b = document.createElement('b'); b.textContent = Math.round(w.temp) + '° · ' + t(wkey);
+  const d = document.createElement('span'); d.className = 'dim'; d.textContent = w.name || t('nowWord');
   l.append(b, d); now.append(box, l);
   stackList.appendChild(now);
   (w.days || []).slice(1).forEach((day) => {
     const row = document.createElement('div'); row.className = 'row set';
-    const ic2 = document.createElement('div'); ic2.className = 'ic plain'; ic2.innerHTML = svg(wmo(day.code)[0]);
+    const [ic2, k2] = wmo(day.code);
+    const ic2el = document.createElement('div'); ic2el.className = 'ic plain'; ic2el.innerHTML = svg(ic2);
     const l2 = document.createElement('span'); l2.className = 'lbl';
     const b2 = document.createElement('b'); b2.textContent = dayName(day.date);
-    const d2 = document.createElement('span'); d2.className = 'dim'; d2.textContent = wmo(day.code)[1];
+    const d2 = document.createElement('span'); d2.className = 'dim'; d2.textContent = t(k2);
     l2.append(b2, d2);
-    const t = document.createElement('span'); t.className = 'dim'; t.textContent = Math.round(day.hi) + '° / ' + Math.round(day.lo) + '°';
-    row.append(ic2, l2, t);
+    const temps = document.createElement('span'); temps.className = 'dim'; temps.textContent = Math.round(day.hi) + '° / ' + Math.round(day.lo) + '°';
+    row.append(ic2el, l2, temps);
     stackList.appendChild(row);
   });
 }
 function renderEvents() {
   $('#stack-clear').classList.add('hidden');
   if (!st.events) {
-    const e = document.createElement('div'); e.className = 'row empty'; e.textContent = 'No calendar file yet — set one in Settings';
+    const e = document.createElement('div'); e.className = 'row empty'; e.textContent = t('noCalendarFile');
     stackList.appendChild(e); return;
   }
-  st.events.days.forEach((day) => {
-    const head = document.createElement('div'); head.className = 'row empty wide'; head.textContent = day.label;
+  st.events.days.forEach((day, di) => {
+    const head = document.createElement('div'); head.className = 'row empty wide'; head.textContent = di === 0 ? t('today') : t('tomorrow');
     stackList.appendChild(head);
     if (!day.items.length) {
-      const e = document.createElement('div'); e.className = 'row empty'; e.textContent = 'Nothing planned';
+      const e = document.createElement('div'); e.className = 'row empty'; e.textContent = t('nothingPlanned');
       stackList.appendChild(e); return;
     }
     day.items.forEach((ev) => {
@@ -2000,11 +2025,50 @@ function renderEvents() {
       const ic = document.createElement('div'); ic.className = 'ic plain'; ic.innerHTML = svg('cal');
       const l = document.createElement('span'); l.className = 'lbl'; l.dir = 'auto';
       const b = document.createElement('b'); b.textContent = ev.title;
-      const d = document.createElement('span'); d.className = 'dim'; d.textContent = ev.allDay ? 'All day' : ev.time;
+      const d = document.createElement('span'); d.className = 'dim'; d.textContent = ev.allDay ? t('allDay') : ev.time;
       l.append(b, d);
       row.append(ic, l);
       stackList.appendChild(row);
     });
+  });
+}
+// ------------------------------------------------------------ plugins (data-only cards from %APPDATA%\MIMO\plugins)
+// the tags on the tools row: one per plugin, showing its newest headline value
+function renderPluginTags() {
+  const box = $('#t-plugins');
+  box.textContent = '';
+  st.pluginSpecs.forEach((spec) => {
+    const p = st.plugins[spec.id];
+    const tag = document.createElement('span'); tag.className = 'tag';
+    const headline = p && p.ok && p.lines && p.lines.length ? ' · ' + String(p.lines[0][1] || p.lines[0][0]).slice(0, 22) : '';
+    tag.textContent = spec.title.slice(0, 14) + headline;
+    tag.title = p && !p.ok ? t('pluginErr') : spec.title + ' — ' + t('open');
+    tag.addEventListener('click', () => setStack(!(st.stackOpen && st.stackKind === 'plugin:' + spec.id), 'plugin:' + spec.id));
+    box.appendChild(tag);
+  });
+}
+// the stack itself: the plugin's title, then its rows (or one row explaining the trouble)
+function renderPlugin(id) {
+  $('#stack-clear').classList.add('hidden');
+  const p = st.plugins[id];
+  if (!p) {
+    const e = document.createElement('div'); e.className = 'row empty'; e.textContent = t('waitingReading');
+    stackList.appendChild(e); return;
+  }
+  const head = document.createElement('div'); head.className = 'row empty wide'; head.textContent = p.title;
+  stackList.appendChild(head);
+  if (!p.ok) {
+    const e = document.createElement('div'); e.className = 'row empty wide'; e.textContent = t(p.error === 'empty' ? 'pluginEmpty' : 'pluginErr');
+    stackList.appendChild(e); return;
+  }
+  (p.lines || []).forEach(([label, value]) => {
+    const row = document.createElement('div'); row.className = 'row set';
+    const l = document.createElement('span'); l.className = 'lbl'; l.dir = 'auto';
+    const b = document.createElement('b'); b.textContent = label || value;
+    l.appendChild(b);
+    if (label && value) { const d = document.createElement('span'); d.className = 'dim'; d.textContent = value; l.appendChild(d); }
+    row.appendChild(l);
+    stackList.appendChild(row);
   });
 }
 function renderLyrics() {
@@ -2013,7 +2077,7 @@ function renderLyrics() {
   const L = st.lyrics;
   if (!L || (!L.synced && !L.plain)) {
     const e = document.createElement('div'); e.className = 'row empty';
-    e.textContent = st.media.active ? 'No lyrics found for this track' : 'Play something, then open the lyrics';
+    e.textContent = st.media.active ? t('noLyrics') : t('playThenLyrics');
     stackList.appendChild(e); return;
   }
   if (!L.synced) {
@@ -2055,7 +2119,7 @@ function renderStats() {
   if (!st.stats) {
     const off = st.settings && st.settings.statsOn === false;
     const e = document.createElement('div'); e.className = 'row empty';
-    e.textContent = off ? 'System stats are off — turn them on below' : 'Waiting for the first reading…';
+    e.textContent = off ? t('statsOff') : t('waitingReading');
     stackList.appendChild(e); return;
   }
   const mk = (label) => {
@@ -2069,7 +2133,7 @@ function renderStats() {
     stackList.appendChild(row);
     return { fill, v };
   };
-  st.statsUi = { cpu: mk('CPU'), ram: mk('Memory'), net: mk('Network') };
+  st.statsUi = { cpu: mk(t('cpu')), ram: mk(t('memory')), net: mk(t('network')) };
   paintStats();
 }
 function paintStats() {
@@ -2085,17 +2149,17 @@ function paintStats() {
   ui.net.v.textContent = '↓ ' + rate(s.down) + '  ↑ ' + rate(s.up);
 }
 async function weatherPick() {
-  const v = await ask({ icon: 'sun', placeholder: 'City for the weather — Tehran, Paris…', value: (st.settings && st.settings.weatherName) || '', hint: '↵' });
+  const v = await ask({ icon: 'sun', placeholder: t('cityPlaceholder'), value: (st.settings && st.settings.weatherName) || '', hint: '↵' });
   if (v === null || !v.trim()) return;
   const r = await window.mimo.weatherCity(v.trim());
-  if (r && r.ok) showHud('sun', 'Weather', r.name, 2400, 'green pop');
-  else showHud('sun', 'Weather', 'Could not find that city', 2400, 'red pop');
+  if (r && r.ok) showHud('sun', t('weatherWord'), r.name, 2400, 'green pop');
+  else showHud('sun', t('weatherWord'), t('cityNotFound'), 2400, 'red pop');
 }
 async function calendarPick() {
-  const v = await ask({ icon: 'cal', placeholder: 'A .ics file, or a folder holding them', value: (st.settings && st.settings.calendarFile) || '', hint: '↵' });
+  const v = await ask({ icon: 'cal', placeholder: t('icsPlaceholder'), value: (st.settings && st.settings.calendarFile) || '', hint: '↵' });
   if (v === null) return;
   window.mimo.setSetting('calendarFile', v.trim());
-  showHud('cal', 'Calendar', v.trim() ? 'Reading the file(s)' : 'Calendar off', 2200, 'plain');
+  showHud('cal', t('calendarWord'), v.trim() ? t('readingFiles') : t('calendarOff'), 2200, 'plain');
 }
 function renderSettings() {
   $('#stack-clear').classList.add('hidden');
@@ -2104,29 +2168,29 @@ function renderSettings() {
     const row = document.createElement('div'); row.className = 'row set sp upd';
     const ic = document.createElement('div'); ic.className = 'ic plain'; ic.innerHTML = svg('download');
     const l = document.createElement('span'); l.className = 'lbl';
-    const b = document.createElement('b'); b.textContent = 'Version ' + st.update + ' is ready';
+    const b = document.createElement('b'); b.textContent = t('versionReady', { v: st.update });
     const d = document.createElement('span'); d.className = 'dim';
-    d.textContent = s.autoUpdate !== false ? 'Installs by itself when you step away' : 'Takes a few seconds, then MIMO is back';
+    d.textContent = s.autoUpdate !== false ? t('installsByItself') : t('takesSeconds');
     l.append(b, d);
-    const go = document.createElement('button'); go.className = 'go solid'; go.textContent = 'Install now';
-    go.addEventListener('click', () => { go.textContent = 'Installing…'; window.mimo.updateInstall(); });
+    const go = document.createElement('button'); go.className = 'go solid'; go.textContent = t('installNow');
+    go.addEventListener('click', () => { go.textContent = t('installing'); window.mimo.updateInstall(); });
     row.append(ic, l, go);
     stackList.appendChild(row);
   } else if (st.available) {   // announced but not fetched yet: one click downloads and installs it
     const row = document.createElement('div'); row.className = 'row set sp upd';
     const ic = document.createElement('div'); ic.className = 'ic plain'; ic.innerHTML = svg('download');
     const l = document.createElement('span'); l.className = 'lbl';
-    const b = document.createElement('b'); b.textContent = 'Version ' + st.available + ' is available';
-    const d = document.createElement('span'); d.className = 'dim'; d.textContent = 'One click, then MIMO comes back';
+    const b = document.createElement('b'); b.textContent = t('versionAvailable', { v: st.available });
+    const d = document.createElement('span'); d.className = 'dim'; d.textContent = t('oneClick');
     l.append(b, d);
-    const go = document.createElement('button'); go.className = 'go solid'; go.textContent = 'Install now';
-    go.addEventListener('click', () => installUpdate((t) => (go.textContent = t)));
+    const go = document.createElement('button'); go.className = 'go solid'; go.textContent = t('installNow');
+    go.addEventListener('click', () => installUpdate((txt) => (go.textContent = txt)));
     row.append(ic, l, go);
     stackList.appendChild(row);
   }
   SETTINGS_UI.forEach(([type, key, label, a, b, unit], i) => {
     const row = document.createElement('div'); row.className = 'row set'; row.style.setProperty('--i', Math.min(i, 6));
-    const l = document.createElement('span'); l.className = 'lbl'; l.textContent = label; row.appendChild(l);
+    const l = document.createElement('span'); l.className = 'lbl'; l.textContent = t(label); row.appendChild(l);
     if (type === 'toggle') {
       const on = key === 'autoStart' ? !!s.autoStartOn : s[key] !== false;
       const sw = document.createElement('button'); sw.className = 'sw' + (on ? ' on' : '');
@@ -2134,19 +2198,21 @@ function renderSettings() {
       row.appendChild(sw);
     } else if (type === 'seg') {
       const seg = document.createElement('div'); seg.className = 'seg';
-      for (const [val, text] of a) {
-        const bt = document.createElement('button'); bt.textContent = text; if ((s[key] || a[0][0]) === val) bt.className = 'on';
+      for (const [val, textKey] of a) {
+        const bt = document.createElement('button'); bt.textContent = t(textKey); if ((s[key] || a[0][0]) === val) bt.className = 'on';
         bt.addEventListener('click', () => window.mimo.setSetting(key, val));
         seg.appendChild(bt);
       }
       row.appendChild(seg);
     } else if (type === 'swatch') {
       const now = s[key] || a[0];
-      const name = document.createElement('span'); name.className = 'dim swn'; name.textContent = now === 'sky' ? 'Cover colours' : now === 'black' ? 'Black' : THEMES[now].name;
+      const themeKey = (v) => 'tn' + v.charAt(0).toUpperCase() + v.slice(1);
+      const name = document.createElement('span'); name.className = 'dim swn';
+      name.textContent = now === 'sky' ? t('tnCover') : now === 'black' ? t('tnBlack') : t(themeKey(now));
       const box = document.createElement('div'); box.className = 'sws';
       for (const val of a) {
         const bt = document.createElement('button'); bt.className = 'sw-' + val + (val === now ? ' on' : '');
-        bt.title = val === 'sky' ? 'Violet night sky' : val === 'black' ? 'Plain black' : THEMES[val].name;
+        bt.title = val === 'sky' ? t('tnVioletSky') : val === 'black' ? t('tnPlainBlack') : t(themeKey(val));
         bt.addEventListener('click', () => window.mimo.setSetting(key, val));
         box.appendChild(bt);
       }
@@ -2154,21 +2220,21 @@ function renderSettings() {
     } else if (type === 'step') {
       const cur = clamp(Number(s[key]) || a, a, b);
       const mk = (icon, d) => { const bt = document.createElement('button'); bt.className = 'ib small'; bt.innerHTML = svg(icon); bt.addEventListener('click', () => window.mimo.setSetting(key, clamp(cur + d, a, b))); return bt; };
-      const num = document.createElement('span'); num.className = 'num'; num.textContent = cur + unit;
+      const num = document.createElement('span'); num.className = 'num'; num.textContent = cur + t(unit);
       row.append(mk('minus', -1), num, mk('plus', 1));
     } else if (type === 'monitors') {
       const seg = document.createElement('div'); seg.className = 'seg';
       const list = st.monitors && st.monitors.length ? st.monitors : [{ i: 0, primary: true }];
       list.forEach((mo) => {
         const bt = document.createElement('button'); bt.textContent = mo.i + 1;
-        if (mo.primary) bt.title = 'Screen ' + (mo.i + 1) + ' — main';
+        if (mo.primary) bt.title = t('screenNMain', { n: mo.i + 1 });
         if ((s[key] || 0) === mo.i) bt.className = 'on';
         bt.addEventListener('click', () => window.mimo.setSetting('monitor', mo.i));
         seg.appendChild(bt);
       });
       row.appendChild(seg);
     } else if (type === 'button') {
-      const bt = document.createElement('button'); bt.className = 'go'; bt.textContent = a;
+      const bt = document.createElement('button'); bt.className = 'go'; bt.textContent = t(a);
       bt.addEventListener('click', () => {
         if (key === 'tour') setStack(true, 'tour');
         else if (key === 'weatherCity') weatherPick();
@@ -2181,48 +2247,73 @@ function renderSettings() {
     }
     stackList.appendChild(row);
   });
+  // the plugins folder: one toggle per file, a button that opens the folder, and the one-line hint
+  if (st.pluginSpecs.length || st.plugins && Object.keys(st.plugins).length) {
+    const head = document.createElement('div'); head.className = 'row empty wide'; head.textContent = t('plugins');
+    stackList.appendChild(head);
+    st.pluginSpecs.forEach((spec) => {
+      const row = document.createElement('div'); row.className = 'row set';
+      const l = document.createElement('span'); l.className = 'lbl'; l.textContent = spec.title;
+      const on = !(((st.settings || {}).pluginsOff) || []).includes(spec.id);
+      const sw = document.createElement('button'); sw.className = 'sw' + (on ? ' on' : '');
+      sw.addEventListener('click', () => {
+        const now = ((st.settings || {}).pluginsOff) || [];
+        const next = now.includes(spec.id) ? now.filter((x) => x !== spec.id) : now.concat([spec.id]);
+        sw.classList.toggle('on'); window.mimo.setSetting('pluginsOff', next);
+      });
+      row.append(l, sw);
+      stackList.appendChild(row);
+    });
+    const folder = document.createElement('div'); folder.className = 'row set';
+    const fl = document.createElement('span'); fl.className = 'lbl'; fl.textContent = t('pluginsFolderHint');
+    const fb = document.createElement('button'); fb.className = 'go'; fb.textContent = t('pluginsFolder');
+    fb.addEventListener('click', () => window.mimo.pluginsFolder());
+    folder.append(fl, fb);
+    stackList.appendChild(folder);
+  }
   const info = document.createElement('div'); info.className = 'row set info';
   info.textContent = s.appName || 'MIMO';
   const up = document.createElement('button'); up.className = 'go';
-  up.textContent = st.update ? 'Install ' + st.update : st.available ? 'Install ' + st.available : 'Check for updates';
+  up.textContent = st.update ? t('installX', { v: st.update }) : st.available ? t('installX', { v: st.available }) : t('checkUpdates');
   up.addEventListener('click', async () => {
     if (st.update) { window.mimo.updateInstall(); return; }
-    if (st.available) { installUpdate((t) => (up.textContent = t)); return; }
-    up.textContent = 'Checking…';
+    if (st.available) { installUpdate((txt) => (up.textContent = txt)); return; }
+    up.textContent = t('checking');
     const r = await window.mimo.updateCheck();
     if (r.startsWith('ready')) { st.update = r.slice(6); gearBadge.classList.add('on'); renderStack(); return; }
-    up.textContent = r === 'none' ? 'Up to date' : 'Could not check';
+    up.textContent = r === 'none' ? t('upToDate') : t('couldNotCheck');
   });
   info.appendChild(up);
   stackList.appendChild(info);
 }
 // What MIMO can do: one row per feature, under the pill. A click on a row tries the thing itself.
+// Titles and texts are i18n keys.
 const TOUR = [
-  ['note', 'Now playing', 'Play something: cover, title and controls appear here'],
-  ['bell', 'Notifications', 'One line on the pill. Click it to open that chat', 'inbox'],
-  ['link', 'Smart copy', 'Copy a link, a sum or a date, then click the line'],
-  ['tray', 'File shelf', 'Drop files on the pill. Drag them out when you need them'],
-  ['scan', 'Text grab', 'Drag a box on the screen, the text is copied', 'ocr', 'Ctrl Alt T'],
-  ['jot', 'Quick note', 'One line. "call Ali in 20m" becomes a reminder', 'notes', 'Ctrl Alt N'],
-  ['clipboard', 'Clipboard history', 'Everything you copied, with images and pins', 'clips'],
-  ['key', 'Passwords', 'Makes one, asks what it is for, keeps it encrypted', 'vault'],
-  ['timer', 'Timer', 'Stays in sight while it runs', 'timer'],
-  ['gear', 'Themes and settings', 'Liquid skins, Venom, and every switch', 'settings'],
+  ['note', 'tourNowPlaying', 'tourNowPlayingD'],
+  ['bell', 'tourNotifs', 'tourNotifsD', 'inbox'],
+  ['link', 'tourSmartCopy', 'tourSmartCopyD'],
+  ['tray', 'tourShelf', 'tourShelfD'],
+  ['scan', 'tourOcr', 'tourOcrD', 'ocr', 'Ctrl Alt T'],
+  ['jot', 'tourNote', 'tourNoteD', 'notes', 'Ctrl Alt N'],
+  ['clipboard', 'tourClips', 'tourClipsD', 'clips'],
+  ['key', 'tourVault', 'tourVaultD', 'vault'],
+  ['timer', 'tourTimer', 'tourTimerD', 'timer'],
+  ['gear', 'tourThemes', 'tourThemesD', 'settings'],
 ];
 function renderTour() {
   $('#stack-clear').classList.add('hidden');
-  const head = document.createElement('div'); head.className = 'row empty wide'; head.textContent = 'Hover the pill to open its menu';
+  const head = document.createElement('div'); head.className = 'row empty wide'; head.textContent = t('tourHead');
   stackList.appendChild(head);
   TOUR.forEach(([icon, title, text, act, keys], i) => {
     const row = document.createElement('div'); row.className = 'row set sp tour' + (act ? ' can' : ''); row.style.setProperty('--i', Math.min(i + 1, 6));
     const ic = document.createElement('div'); ic.className = 'ic plain'; ic.innerHTML = svg(icon);
     const lbl = document.createElement('span'); lbl.className = 'lbl';
-    const b = document.createElement('b'); b.textContent = title;
-    const d = document.createElement('span'); d.className = 'dim'; d.textContent = text;
+    const b = document.createElement('b'); b.textContent = t(title);
+    const d = document.createElement('span'); d.className = 'dim'; d.textContent = t(text);
     lbl.append(b, d); row.append(ic, lbl);
     if (keys) { const k = document.createElement('span'); k.className = 'keys'; k.textContent = keys; row.appendChild(k); }
     if (act) {
-      row.title = 'Try it';
+      row.title = t('tryIt');
       row.addEventListener('click', () => { st.holdUntil = Date.now() + 6000; const bt = $('[data-act="' + act + '"]'); if (act === 'ocr') setStack(false); if (bt) bt.click(); });
     }
     stackList.appendChild(row);
@@ -2441,8 +2532,8 @@ function startWanderAnimation() {
       // Upright 2D stroll — like the little robot: no flatten, a gentle waddle (±2.4°) with a small
       // bob on each step. The island sits at left:50%, top:8px; the walk aims its centre at (newX, newY).
       const w = island.offsetWidth, h = island.offsetHeight;
-      const t = timestamp / 1000;
-      const sway = Math.sin(t * 7) * 2.4, bob = -Math.abs(Math.sin(t * 7)) * 1.6;
+      const wt = timestamp / 1000;   // not "t": the i18n translator lives at this scope too
+      const sway = Math.sin(wt * 7) * 2.4, bob = -Math.abs(Math.sin(wt * 7)) * 1.6;
       island.style.transform = `translate(${(newX - window.innerWidth / 2 - w / 2).toFixed(1)}px, ${(newY - h / 2 - 8 + bob).toFixed(1)}px) rotate(${sway.toFixed(2)}deg)`;
     } else {
       // Close enough, pick new target
@@ -2587,8 +2678,22 @@ island.addEventListener('click', (e) => {
 
 // ------------------------------------------------------------ boot
 let hinted = false, toured = false;
+// the interface language: dictionary + dir=rtl + Vazirmatn (body.fa) + the date formatters, then repaint.
+// Cheap enough to run on every settings broadcast; it only acts when the language actually changed.
+let curLang = null;
+function applyLang(l) {
+  if (l === curLang) return;
+  curLang = l;
+  window.MI18N.setLang(l);
+  buildFormatters();
+  paintVol(); paintStatus(); renderPluginTags(); tick(); updateBadge();
+  if (st.stackOpen) renderStack();
+  render();
+}
+applyLang('en');   // boot in English; the saved setting lands with the first settings payload
 const applySettings = (s) => {
   if (!s) return;
+  applyLang(s.lang === 'fa' ? 'fa' : 'en');       // dictionary, RTL, fonts and the date formatters
   st.autoHide = s.autoHide !== false;
   st.hideVideo = s.hideVideo !== false;
   st.notifMs = clamp(Number(s.notifSeconds) || 4, 2, 15) * 1000;
@@ -2613,14 +2718,14 @@ const applySettings = (s) => {
   if (!s.toured && !toured) {        // the first start: say hello and offer the list of what it can do
     toured = true;
     setTimeout(() => {
-      showNotif({ app: 'Welcome', title: "Hi, I'm MIMO", body: 'Click to see what I can do', action: 'tour', long: true });
+      showNotif({ app: t('welcomeApp'), title: t('hiMimo'), body: t('seeWhatICanDo'), action: 'tour', long: true });
       window.mimo.setSetting('toured', true);
     }, 1800);
   }
   if (!s.dndHint && !hinted) {       // one-time guide: Windows has no switch an app may flip, so point at it
     hinted = true;
     setTimeout(() => {
-      showNotif({ app: 'Tip', title: 'Banners only here?', body: 'Click, then switch on "Do not disturb"', action: 'dnd', long: true });
+      showNotif({ app: t('tipApp'), title: t('bannersOnly'), body: t('dndTip'), action: 'dnd', long: true });
       window.mimo.hintShown();
     }, 3500);
   }
@@ -2661,12 +2766,12 @@ function smart(raw) {
   const copyIt = (v) => () => window.mimo.copy(v);
   if (/^https?:\/\/[^\s"<>]+$/i.test(t)) {
     let host = t; try { host = new URL(t).host.replace(/^www\./, ''); } catch { return null; }
-    return { icon: 'link', title: host, text: 'click to open', tone: 'blue pop', act: () => window.mimo.openUrl(t) };
+    return { icon: 'link', title: host, text: t('clickToOpen'), tone: 'blue pop', act: () => window.mimo.openUrl(t) };
   }
   let m = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(t);
   if (m) {
     const h = m[1].length === 3 ? m[1].replace(/./g, '$&$&') : m[1], n = parseInt(h, 16), rgb = `rgb(${n >> 16}, ${(n >> 8) & 255}, ${n & 255})`;
-    return { icon: 'drop', title: '#' + h.toUpperCase(), text: rgb + ' · click to copy', color: '#' + h, act: copyIt(rgb) };
+    return { icon: 'drop', title: '#' + h.toUpperCase(), text: rgb + ' · ' + t('clickToCopy'), color: '#' + h, act: copyIt(rgb) };
   }
   m = /^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})$/.exec(t);
   if (m) {
@@ -2675,12 +2780,12 @@ function smart(raw) {
     if (y >= 1900 && y <= 2100) {
       const sh = new Intl.DateTimeFormat('fa-IR-u-ca-persian-nu-latn', { year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(y, mo - 1, d));
       const long = new Intl.DateTimeFormat('en-u-ca-persian', { day: 'numeric', month: 'long', weekday: 'short' }).format(new Date(y, mo - 1, d));
-      return { icon: 'cal', title: sh, text: long + ' · click to copy', act: copyIt(sh) };
+      return { icon: 'cal', title: sh, text: long + ' · ' + t('clickToCopy'), act: copyIt(sh) };
     }
     if (y >= 1300 && y <= 1500) {
       const [gy, gm, gd] = jalaliToGregorian(y, mo, d), g = `${gy}-${pad(gm)}-${pad(gd)}`;
       const long = new Date(gy, gm - 1, gd).toLocaleDateString('en', { day: 'numeric', month: 'long', weekday: 'short' });
-      return { icon: 'cal', title: g, text: long + ' · click to copy', act: copyIt(g) };
+      return { icon: 'cal', title: g, text: long + ' · ' + t('clickToCopy'), act: copyIt(g) };
     }
     return null;
   }
@@ -2689,7 +2794,7 @@ function smart(raw) {
     const v = calc(t);
     if (v === null) return null;
     const out = String(Math.round(v * 1e8) / 1e8);
-    return { icon: 'calc', title: '= ' + Number(out).toLocaleString('en', { maximumFractionDigits: 8 }), text: 'click to copy', act: copyIt(out) };
+    return { icon: 'calc', title: '= ' + Number(out).toLocaleString('en', { maximumFractionDigits: 8 }), text: t('clickToCopy'), act: copyIt(out) };
   }
   return null;
 }
@@ -2706,15 +2811,15 @@ async function readPersian(png) {
   return [d.text || '', d.confidence || 0];
 }
 window.mimo.onOcrRead(async (m) => {
-  showHud('scan', 'Reading…', '', 9000, 'faded');
+  showHud('scan', t('reading'), '', 9000, 'faded');
   let text = '', conf = 0;
   try { [text, conf] = await readPersian(m.png); } catch (e) { window.__ocrErr = String(e && e.message || e); ocrWorker = null; }
   window.mimo.ocrDone(text, conf);
 });
 window.mimo.onOcr((r) => {
   st.muteClipUntil = Date.now() + 1500;
-  if (r.ok) showHud('scan', 'Text copied', String(r.text).replace(/\s+/g, ' '), 2800, 'green pop');
-  else showHud('scan', 'Text grab', r.why || 'Nothing found', 2400, 'faded');
+  if (r.ok) showHud('scan', t('textCopied'), String(r.text).replace(/\s+/g, ' '), 2800, 'green pop');
+  else showHud('scan', t('textGrab'), r.why || t('nothingFound'), 2400, 'faded');
 });
 window.mimo.onClip((c) => {
   if (Date.now() < st.muteClipUntil) return;
@@ -2725,14 +2830,14 @@ window.mimo.onClip((c) => {
     st.hudAct = s.act; views.hud.classList.add('act');
     return;
   }
-  if (c.kind === 'text') showHud('copy', 'Copied', c.preview, 1500);
-  else if (c.kind === 'image') showHud('image', 'Copied', 'image', 1400);
-  else if (c.kind === 'files') showHud('file', 'Copied', 'files', 1400);
-  else showHud('copy', 'Copied', '', 1200);
+  if (c.kind === 'text') showHud('copy', t('copied'), c.preview, 1500);
+  else if (c.kind === 'image') showHud('image', t('copied'), t('imageWord'), 1400);
+  else if (c.kind === 'files') showHud('file', t('copied'), t('filesWord'), 1400);
+  else showHud('copy', t('copied'), '', 1200);
 });
 // a browser download finished: one line, click to open it
 window.mimo.onDownload((d) => {
-  showNotif({ app: 'Download finished', title: d.name, body: d.size + (d.risky ? ' · click to show in folder' : ' · click to open'), icon: d.icon, action: 'download', path: d.path });
+  showNotif({ app: t('downloadApp'), title: d.name, body: d.size + (d.risky ? ' ' + t('showInFolder') : ' ' + t('clickToOpenDot')), icon: d.icon, action: 'download', path: d.path });
 });
 window.mimo.onSettings(applySettings);
 window.mimo.monitorsList().then((l) => { if (Array.isArray(l) && l.length) { st.monitors = l; if (st.stackOpen && st.stackKind === 'settings') renderStack(); } });

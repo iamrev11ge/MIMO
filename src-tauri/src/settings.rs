@@ -13,6 +13,7 @@ static SETTINGS: Mutex<Option<Map<String, Value>>> = Mutex::new(None);
 const THEMES: [&str; 10] = ["black", "nebula", "crystal", "ember", "reactor", "venom", "cloud", "water", "lava", "ice"];
 const BOOLS: [&str; 19] = ["autoUpdate", "weatherOn", "lyricsOn", "statsOn", "musicReact", "netAlerts", "sensorDot", "smartCopy", "autoHide", "hideVideo", "copyPreview", "clipHistory", "deviceAlerts", "downloadAlerts", "shelf", "visuals", "noteHotkey", "vaultSymbols", "idleWalk"];
 const CALENDARS: [&str; 4] = ["gregorian", "shamsi", "shamsi-fa", "both"];
+const LANGS: [&str; 2] = ["en", "fa"];
 
 fn defaults() -> Map<String, Value> {
     json!({
@@ -30,6 +31,7 @@ fn defaults() -> Map<String, Value> {
         "lyricsOn": true,            // ask LRCLIB for the words of the playing track (title/artist only)
         "statsOn": true,             // CPU / memory / network numbers, two seconds apart
         "shape": "island",           // "island" floats, "notch" hugs the top edge
+        "lang": "en",                // interface language: "en" or "fa" (Persian, right-to-left)
     })
     .as_object()
     .cloned()
@@ -61,6 +63,10 @@ pub fn get(key: &str) -> Value {
 }
 pub fn flag(key: &str) -> bool {
     get(key).as_bool().unwrap_or(false)
+}
+/// The ids of the plugin files the user switched off (see plugin.rs).
+pub fn plugins_off() -> Vec<String> {
+    get("pluginsOff").as_array().map(|a| a.iter().filter_map(Value::as_str).map(String::from).collect()).unwrap_or_default()
 }
 pub fn put(key: &str, value: Value) {
     with(|m| m.insert(key.to_string(), value));
@@ -98,6 +104,19 @@ pub fn apply(key: &str, value: &Value) {
         "shape" => {
             if let Some(v) = value.as_str().filter(|v| ["island", "notch"].contains(v)) {
                 put(key, v.into());
+            }
+        }
+        "lang" => {
+            if let Some(v) = value.as_str().filter(|v| LANGS.contains(v)) {
+                put(key, v.into());
+            }
+        }
+        "pluginsOff" => {
+            // which plugin files sit idle: an array of ids (file stems); an empty array re-enables all
+            if let Some(list) = value.as_array().map(|a| a.iter().filter_map(Value::as_str).map(str::trim).filter(|s| !s.is_empty() && s.len() <= 40).map(String::from).collect::<Vec<_>>()) {
+                if list.len() <= 8 {
+                    put(key, Value::Array(list.into_iter().map(Value::String).collect()));
+                }
             }
         }
         "skin" => {

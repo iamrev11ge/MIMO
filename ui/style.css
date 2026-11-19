@@ -10,6 +10,23 @@ html, body { width: 100%; height: 100%; background: transparent; overflow: hidde
 body { font-family: "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif; color: #fff; font-size: 13px; }
 button { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; }
 
+/* ------------------------------------------------ Persian interface: bundled Vazirmatn (OFL) + mirrored layout.
+   i18n.js sets dir="rtl" on <html> and body.fa when the language is FA; flex rows mirror on their own. */
+@font-face { font-family: "Vazirmatn"; src: url("fonts/Vazirmatn-Regular.woff2") format("woff2"); font-weight: 400; font-style: normal; font-display: swap; }
+@font-face { font-family: "Vazirmatn"; src: url("fonts/Vazirmatn-Bold.woff2") format("woff2"); font-weight: 700; font-style: normal; font-display: swap; }
+body.fa { font-family: "Vazirmatn", "Segoe UI", system-ui, sans-serif; }
+html[dir="rtl"] .row.set { padding: 0 14px 0 8px; }
+html[dir="rtl"] [data-view="tools"] { padding: 0 14px 0 6px; }
+html[dir="rtl"] [data-view="tools"] .ib { margin-left: 0; margin-right: -3px; }
+html[dir="rtl"] .row.clip { padding-left: 0; padding-right: 4px; }
+html[dir="rtl"] .row.file { padding-left: 0; padding-right: 8px; }
+html[dir="rtl"] .row.loc { padding-left: 0; padding-right: 6px; }
+html[dir="rtl"] .row .mqbox b { margin-right: 0; margin-left: 5px; }
+html[dir="rtl"] .row .x { margin-left: 0; margin-right: 2px; }
+html[dir="rtl"] .sw.on::after { transform: translateX(-14px); }
+html[dir="rtl"] .sw.big.on::after { transform: translateX(-24px); }
+/* the media progress bar stays left-to-right in both languages (players do) */
+
 /* ------------------------------------------------ the pill */
 #island {
   position: absolute; top: 8px; left: 50%; transform: translateX(-50%);
@@ -44,7 +61,8 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
 #seek { position: absolute; left: 0; right: 0; bottom: 0; height: 9px; display: none; }
 #seek.on { display: block; }
 #seek::before { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 2px; background: rgba(255, 255, 255, .16); transition: height .15s; }
-#seek-fill { position: absolute; left: 0; bottom: 0; height: 2px; width: 0; background: rgba(255, 255, 255, .9); transition: height .15s; }
+#seek-fill { position: absolute; left: 0; bottom: 0; height: 2px; width: 0; background: rgba(255, 255, 255, .9); transition: width .25s linear, height .15s; }
+#seek.scrub #seek-fill, #seek.scrub::before { transition: height .15s; }   /* scrubbing must follow the cursor exactly */
 #seek-knob { position: absolute; bottom: -1px; width: 9px; height: 9px; margin-left: -4.5px; border-radius: 50%; background: #fff; box-shadow: 0 1px 4px rgba(0, 0, 0, .5); transform: scale(0); transition: transform .15s var(--spring); }
 #seek.can { cursor: pointer; }
 #seek.can:hover::before, #seek.can.scrub::before, #seek.can:hover #seek-fill, #seek.can.scrub #seek-fill { height: 5px; }
@@ -163,8 +181,8 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
 #flash i { width: 14px; height: 14px; border-radius: 4px; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .3); }
 
 /* ------------------------------------------------ notification stack (pills dropping under the island) */
-#stack { position: absolute; top: 50px; left: 50%; width: 400px; margin-left: -200px; display: flex; flex-direction: column; align-items: center; opacity: 0; pointer-events: none; transition: opacity .18s; }
-#stack.open { opacity: 1; pointer-events: auto; }
+#stack { position: absolute; top: 50px; left: 50%; width: 400px; margin-left: -200px; display: flex; flex-direction: column; align-items: center; opacity: 0; transform: translateY(-8px) scale(.98); pointer-events: none; transition: opacity .18s, transform .3s var(--spring); }
+#stack.open { opacity: 1; transform: none; pointer-events: auto; }
 #stack-list { width: 100%; max-height: 200px; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; padding: 2px 8px 4px; scrollbar-width: none; }
 #stack-list::-webkit-scrollbar { display: none; }
 .row { flex: none; height: 34px; border-radius: 17px; background: #000; box-shadow: 0 3px 12px rgba(0, 0, 0, .35), inset 0 0 0 1px rgba(255, 255, 255, .08); display: flex; align-items: center; gap: 7px; padding: 0 6px 0 6px; white-space: nowrap; cursor: pointer; transition: transform .25s var(--spring), background .15s; }
@@ -490,3 +508,10 @@ body.daylight #island .sep { background: rgba(24, 34, 47, .25); }
 .row.set.stat .sbar { flex: 1; height: 6px; border-radius: 3px; background: rgba(255, 255, 255, .12); overflow: hidden; }
 .row.set.stat .sbar i { display: block; height: 100%; width: 0; border-radius: 3px; background: linear-gradient(90deg, var(--c1, #5b3df5), var(--c2, #8f6bff)); transition: width .4s var(--ease); }
 .row.set.stat .sval { font-size: 11px; min-width: 86px; text-align: right; font-variant-numeric: tabular-nums; white-space: pre; }
+
+/* ------------------------------------------------ motion safety: with "show animations" off in Windows,
+   everything snaps instead of travelling (the pill still works exactly the same) */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01s !important; animation-iteration-count: 1 !important; transition-duration: .01s !important; }
+  .mqbox.mq-on > .mq { animation: none !important; transform: none !important; }
+}

@@ -10,6 +10,7 @@ mod media;
 mod net;
 mod ocr;
 mod notif;
+mod plugin;
 mod poll;
 mod settings;
 mod shelf;
@@ -188,8 +189,11 @@ fn settings_get() -> Value {
     settings::payload()
 }
 #[tauri::command]
-fn settings_set(key: String, value: Value) {
-    settings::apply(&key, &value)
+fn settings_set(app: tauri::AppHandle, key: String, value: Value) {
+    settings::apply(&key, &value);
+    if key == "lang" {
+        rebuild_tray(&app);   // the tray speaks the interface language too
+    }
 }
 #[tauri::command]
 fn action(name: String) {
@@ -218,6 +222,12 @@ fn monitors_list() -> Value {
 #[tauri::command(async)]
 fn weather_city(name: String) -> Value {
     weather::set_city(&name)
+}
+/// Creates (if needed) and opens the plugins folder in Explorer, then rescans it.
+#[tauri::command]
+fn plugins_folder() {
+    sys::shell_open(plugin::dir().to_string_lossy().as_ref(), None);
+    plugin::poke();
 }
 #[tauri::command(async)]
 fn update_check() -> String {
@@ -340,9 +350,10 @@ fn tray_rgba() -> Vec<u8> {
     buf
 }
 fn create_tray(app: &tauri::App) -> tauri::Result<()> {
+    let (auto_s, set_s, rest_s, quit_s) = tray_texts();
     let title = MenuItemBuilder::with_id("title", sys::APP_NAME).enabled(false).build(app)?;
-    let auto = CheckMenuItemBuilder::with_id("autostart", "Start with Windows").checked(settings::autostart_on()).build(app)?;
-    let menu = MenuBuilder::new(app).item(&title).separator().text("settings", "Settings…").item(&auto).text("restart", "Restart").separator().text("quit", "Quit").build()?;
+    let auto = CheckMenuItemBuilder::with_id("autostart", auto_s).checked(settings::autostart_on()).build(app)?;
+    let menu = MenuBuilder::new(app).item(&title).separator().text("settings", set_s).item(&auto).text("restart", rest_s).separator().text("quit", quit_s).build()?;
     TrayIconBuilder::with_id("main")
         .icon(tauri::image::Image::new_owned(tray_rgba(), 32, 32))
         .tooltip(sys::APP_NAME)
@@ -351,7 +362,8 @@ fn create_tray(app: &tauri::App) -> tauri::Result<()> {
         .on_menu_event(move |app, ev| match ev.id().as_ref() {
             "settings" => sys::emit("open", "settings"),
             "autostart" => {
-                let on = auto.is_checked().unwrap_or(false);
+                // read the effective state, not the menu item (the menu is rebuilt when the language changes)
+                let on = !settings::autostart_on();
                 settings::put("autoStart", on.into());
                 settings::set_autostart(on);
                 settings::broadcast();
@@ -362,6 +374,29 @@ fn create_tray(app: &tauri::App) -> tauri::Result<()> {
         })
         .build(app)?;
     Ok(())
+}
+
+/// Tray labels follow the interface language (the "lang" setting).
+fn tray_texts() -> (&'static str, &'static str, &'static str, &'static str) {
+    if settings::get("lang").as_str() == Some("fa") {
+        ("اجرای خودکار با ویندوز", "تنظیمات…", "راه‌اندازی دوباره", "خروج")
+    } else {
+        ("Start with Windows", "Settings…", "Restart", "Quit")
+    }
+}
+
+/// Called after the language setting changes: swap the tray menu's labels in place.
+fn rebuild_tray(app: &tauri::AppHandle) {
+    let _ = (|| -> tauri::Result<()> {
+        let (auto_s, set_s, rest_s, quit_s) = tray_texts();
+        let title = MenuItemBuilder::with_id("title", sys::APP_NAME).enabled(false).build(app)?;
+        let auto = CheckMenuItemBuilder::with_id("autostart", auto_s).checked(settings::autostart_on()).build(app)?;
+        let menu = MenuBuilder::new(app).item(&title).separator().text("settings", set_s).item(&auto).text("restart", rest_s).separator().text("quit", quit_s).build()?;
+        if let Some(tray) = app.tray_by_id("main") {
+            tray.set_menu(Some(menu))?;
+        }
+        Ok(())
+    })();
 }
 
 /// Developer aid: ISLAND_DEBUG=<dir> runs <dir>\eval.js inside the page and appends the result to <dir>\out.log.
@@ -399,7 +434,7 @@ fn main() {
             clips_get, clip_copy, clip_pin, clip_remove, clips_clear, copy_text,
             shelf_get, shelf_add, shelf_add_data, shelf_add_url, shelf_remove, shelf_clear, shelf_reveal, shelf_drag, open_download,
             settings_get, settings_set, action, open_url, ocr_done, speedo_cmd, update_check, update_install,
-            monitors_list, weather_city,
+            monitors_list, weather_city, plugins_folder,
             notes_get, note_save, note_pin, note_fired, note_remove,
             vault_list, vault_generate, vault_save, vault_edit, fg_context, vault_copy, copy_secret, vault_reveal, vault_remove, debug_out
         ])
@@ -450,6 +485,7 @@ fn main() {
             hit::start_hotkey();
             update::start();
             weather::start();
+            plugin::start();
             // speedo::start();   // parked: Speedo has no control pipe yet, so there is nothing to talk to
             if let Some(d) = debug.clone() {
                 start_debug(win, d);

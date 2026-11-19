@@ -1,0 +1,81 @@
+name: build
+
+# Every push builds the Windows app. A tag like v2.1.0 also publishes it as a release:
+# installer, portable exe, zip, the installer's signature and latest.json (what the in-app updater reads).
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+
+permissions:
+  contents: write
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - name: Build
+        working-directory: src-tauri
+        run: cargo build --release --locked
+
+      - name: Package
+        shell: pwsh
+        run: |
+          $version = (Select-String -Path src-tauri/Cargo.toml -Pattern '^version = "(.+)"').Matches[0].Groups[1].Value
+          if ($env:GITHUB_REF_TYPE -eq 'tag' -and $env:GITHUB_REF_NAME -ne "v$version") { throw "tag $env:GITHUB_REF_NAME does not match Cargo.toml version $version" }
+          New-Item -ItemType Directory -Force dist | Out-Null
+          $nsis = "${env:ProgramFiles(x86)}\NSIS\makensis.exe"
+          if (-not (Test-Path $nsis)) { choco install nsis -y --no-progress; }
+          & $nsis /V2 "/DVERSION=$version" installer/island.nsi
+          if ($LASTEXITCODE -ne 0) { throw "makensis failed" }
+          Copy-Item src-tauri/target/release/mimo.exe dist/MIMO-Portable.exe
+          New-Item -ItemType Directory -Force dist/zip | Out-Null
+          Copy-Item src-tauri/target/release/mimo.exe dist/zip/MIMO.exe
+          Copy-Item LICENSE, README.md dist/zip/
+          Compress-Archive -Path dist/zip/* -DestinationPath dist/MIMO-Windows.zip
+          Remove-Item -Recurse dist/zip
+          @{ version = $version; published = (Get-Date).ToUniversalTime().ToString('o') } | ConvertTo-Json | Set-Content dist/latest.json -Encoding utf8NoBOM
+          "VERSION=$version" >> $env:GITHUB_ENV
+          # the release is titled by its major.minor: 1.0.0 -> "MIMO 1.0", 1.1.0 -> "MIMO 1.1"; a real patch keeps all three
+          "RELNAME=$($version -replace '\.0$','')" >> $env:GITHUB_ENV
+          Get-ChildItem dist | Format-Table Name, Length
+
+      - name: Sign the installer
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          MIMO_SIGN_KEY: ${{ secrets.MIMO_SIGN_KEY }}
+        run: node installer/sign.mjs dist/MIMO-Setup.exe
+
+      - name: Sign the binaries (Authenticode — runs only when the MIMO_PFX_B64 secret is set)
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          MIMO_PFX_B64: ${{ secrets.MIMO_PFX_B64 }}
+          MIMO_PFX_PASS: ${{ secrets.MIMO_PFX_PASS }}
+        shell: pwsh
+        run: |
+          if (-not $env:MIMO_PFX_B64) { Write-Output "No MIMO_PFX_B64 secret — binaries stay unsigned by Authenticode."; exit 0 }
+          [IO.File]::WriteAllBytes("$env:RUNNER_TEMP\mimo.pfx", [Convert]::FromBase64String($env:MIMO_PFX_B64))
+          $env:MIMO_PFX = "$env:RUNNER_TEMP\mimo.pfx"
+          powershell -NoProfile -ExecutionPolicy Bypass -File installer/sign-code.ps1
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MIMO-Windows-${{ env.VERSION }}
+          path: dist/*
+
+      - name: Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          name: MIMO ${{ env.RELNAME }}
+          generate_release_notes: true
+          files: dist/*

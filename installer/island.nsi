@@ -1,0 +1,81 @@
+; MIMO — per-user, one-click installer. Run with /S it installs without showing anything (that is how updates arrive).
+Unicode true
+!define NAME "MIMO"
+!define EXE "MIMO.exe"
+!define UNKEY "Software\Microsoft\Windows\CurrentVersion\Uninstall\MIMO"
+!define RUN "Software\Microsoft\Windows\CurrentVersion\Run"
+
+Name "${NAME}"
+OutFile "..\dist\MIMO-Setup.exe"
+InstallDir "$LOCALAPPDATA\Programs\MIMO"
+RequestExecutionLevel user
+SetCompressor /SOLID lzma
+Icon "..\src-tauri\icons\icon.ico"
+UninstallIcon "..\src-tauri\icons\icon.ico"
+ShowInstDetails nevershow
+AutoCloseWindow true
+Caption "${NAME} ${VERSION}"
+VIProductVersion "${VERSION}.0"
+VIAddVersionKey "ProductName" "${NAME}"
+VIAddVersionKey "FileDescription" "${NAME} installer"
+VIAddVersionKey "FileVersion" "${VERSION}"
+VIAddVersionKey "LegalCopyright" "MIT License"
+Page instfiles
+UninstPage uninstConfirm
+UninstPage instfiles
+
+Section "Install"
+  ; Close whatever copy is running, under its current or its earlier name. Only the app itself, never its
+  ; process tree: an update is started by the app, so this installer is one of its children (with /T it
+  ; closed itself and the update never happened).
+  nsExec::Exec 'taskkill /F /IM "${EXE}"'
+  Pop $0
+  nsExec::Exec 'taskkill /F /IM "Qazi Island.exe"'
+  Pop $0
+  ; wait (up to 8 s) until the old file can be replaced
+  StrCpy $1 0
+  free_wait:
+    Sleep 250
+    IfFileExists "$INSTDIR\${EXE}" 0 free_done
+    ClearErrors
+    Delete "$INSTDIR\${EXE}"
+    IfErrors 0 free_done
+    IntOp $1 $1 + 1
+    IntCmp $1 32 free_done
+    nsExec::Exec 'taskkill /F /IM "${EXE}"'
+    Pop $0
+    Goto free_wait
+  free_done:
+  ; earlier versions (called Qazi Island) are replaced; their settings and pins are taken over by the app itself
+  RMDir /r "$LOCALAPPDATA\Programs\qazi-island"
+  RMDir /r "$LOCALAPPDATA\Programs\Qazi Island"
+  Delete "$SMPROGRAMS\Qazi Island.lnk"
+  DeleteRegKey HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\d0c3e6a1-886d-5c4f-9c9e-ecc7654a4d1f"
+  DeleteRegKey HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\QaziIsland"
+  DeleteRegValue HKCU "${RUN}" "Qazi Island"
+
+  SetOutPath "$INSTDIR"
+  File "/oname=${EXE}" "..\src-tauri\target\release\mimo.exe"
+  WriteUninstaller "$INSTDIR\Uninstall.exe"
+  CreateShortCut "$SMPROGRAMS\${NAME}.lnk" "$INSTDIR\${EXE}"
+  WriteRegStr HKCU "${UNKEY}" "DisplayName" "${NAME}"
+  WriteRegStr HKCU "${UNKEY}" "DisplayVersion" "${VERSION}"
+  WriteRegStr HKCU "${UNKEY}" "DisplayIcon" "$INSTDIR\${EXE}"
+  WriteRegStr HKCU "${UNKEY}" "InstallLocation" "$INSTDIR"
+  WriteRegStr HKCU "${UNKEY}" "Publisher" "iamrev11ge"
+  WriteRegStr HKCU "${UNKEY}" "URLInfoAbout" "https://github.com/iamrev11ge/MIMO"
+  WriteRegStr HKCU "${UNKEY}" "UninstallString" '"$INSTDIR\Uninstall.exe"'
+  WriteRegDWORD HKCU "${UNKEY}" "NoModify" 1
+  WriteRegDWORD HKCU "${UNKEY}" "NoRepair" 1
+  Exec '"$INSTDIR\${EXE}"'
+SectionEnd
+
+Section "Uninstall"
+  nsExec::Exec 'taskkill /F /IM "${EXE}"'
+  Pop $0
+  Sleep 600
+  Delete "$SMPROGRAMS\${NAME}.lnk"
+  DeleteRegValue HKCU "${RUN}" "${NAME}"
+  DeleteRegKey HKCU "${UNKEY}"
+  RMDir /r "$INSTDIR"
+SectionEnd

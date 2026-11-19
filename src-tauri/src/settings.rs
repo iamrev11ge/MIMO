@@ -11,7 +11,7 @@ use crate::sys;
 
 static SETTINGS: Mutex<Option<Map<String, Value>>> = Mutex::new(None);
 const THEMES: [&str; 10] = ["black", "nebula", "crystal", "ember", "reactor", "venom", "cloud", "water", "lava", "ice"];
-const BOOLS: [&str; 16] = ["autoUpdate", "musicReact", "netAlerts", "sensorDot", "smartCopy", "autoHide", "hideVideo", "copyPreview", "clipHistory", "deviceAlerts", "downloadAlerts", "shelf", "visuals", "noteHotkey", "vaultSymbols", "idleWalk"];
+const BOOLS: [&str; 19] = ["autoUpdate", "weatherOn", "lyricsOn", "statsOn", "musicReact", "netAlerts", "sensorDot", "smartCopy", "autoHide", "hideVideo", "copyPreview", "clipHistory", "deviceAlerts", "downloadAlerts", "shelf", "visuals", "noteHotkey", "vaultSymbols", "idleWalk"];
 const CALENDARS: [&str; 4] = ["gregorian", "shamsi", "shamsi-fa", "both"];
 
 fn defaults() -> Map<String, Value> {
@@ -25,6 +25,11 @@ fn defaults() -> Map<String, Value> {
         "skin": "black",            // the resting pill: plain black or one of the animated skins
         "musicTheme": "sky",        // what plays behind the track: "sky" (colours of the cover) or a skin
         "netAlerts": true, "sensorDot": true, "smartCopy": true, "musicReact": true, "autoUpdate": true,
+        "monitor": 0,                // which screen the island lives on (the settings page numbers them)
+        "weatherOn": true, "weatherName": "", "weatherLat": 0.0, "weatherLon": 0.0, "calendarFile": "",
+        "lyricsOn": true,            // ask LRCLIB for the words of the playing track (title/artist only)
+        "statsOn": true,             // CPU / memory / network numbers, two seconds apart
+        "shape": "island",           // "island" floats, "notch" hugs the top edge
     })
     .as_object()
     .cloned()
@@ -90,6 +95,11 @@ pub fn apply(key: &str, value: &Value) {
                 put(key, v.into());
             }
         }
+        "shape" => {
+            if let Some(v) = value.as_str().filter(|v| ["island", "notch"].contains(v)) {
+                put(key, v.into());
+            }
+        }
         "skin" => {
             if let Some(v) = value.as_str().filter(|v| THEMES.contains(v)) {
                 put(key, v.into());
@@ -108,6 +118,27 @@ pub fn apply(key: &str, value: &Value) {
         "vaultLength" => {
             if let Some(n) = value.as_f64().map(|n| n.round() as i64).filter(|n| (8..=40).contains(n)) {
                 put(key, n.into());
+            }
+        }
+        "monitor" => {
+            if let Some(n) = value.as_f64().map(|n| n.round() as i64).filter(|n| (0..=9).contains(n)) {
+                put(key, n.into());
+            }
+        }
+        "weatherName" => {
+            if let Some(v) = value.as_str().map(str::trim).filter(|v| !v.is_empty() && v.chars().count() <= 60) {
+                put(key, v.into());
+            }
+        }
+        "weatherLat" | "weatherLon" => {
+            if let Some(n) = value.as_f64().filter(|n| n.abs() <= 180.0) {
+                put(key, n.into());
+            }
+        }
+        "calendarFile" => {
+            if let Some(v) = value.as_str().map(str::trim).filter(|v| v.len() <= 400) {
+                put(key, v.into());
+                crate::calendar::poke();
             }
         }
         "dndHint" | "toured" => put(key, true.into()),

@@ -2,8 +2,10 @@
 #![windows_subsystem = "windows"]
 
 mod audio;
+mod calendar;
 mod clip;
 mod hit;
+mod lyrics;
 mod media;
 mod net;
 mod ocr;
@@ -12,9 +14,11 @@ mod poll;
 mod settings;
 mod shelf;
 mod speedo;
+mod stats;
 mod store;
 mod sys;
 mod update;
+mod weather;
 
 use std::io::Write;
 use std::path::PathBuf;
@@ -207,6 +211,14 @@ fn open_url(url: String) {
     }
 }
 
+#[tauri::command]
+fn monitors_list() -> Value {
+    hit::monitors_json()
+}
+#[tauri::command(async)]
+fn weather_city(name: String) -> Value {
+    weather::set_city(&name)
+}
 #[tauri::command(async)]
 fn update_check() -> String {
     update::check()
@@ -387,6 +399,7 @@ fn main() {
             clips_get, clip_copy, clip_pin, clip_remove, clips_clear, copy_text,
             shelf_get, shelf_add, shelf_add_data, shelf_add_url, shelf_remove, shelf_clear, shelf_reveal, shelf_drag, open_download,
             settings_get, settings_set, action, open_url, ocr_done, speedo_cmd, update_check, update_install,
+            monitors_list, weather_city,
             notes_get, note_save, note_pin, note_fired, note_remove,
             vault_list, vault_generate, vault_save, vault_edit, fg_context, vault_copy, copy_secret, vault_reveal, vault_remove, debug_out
         ])
@@ -436,6 +449,7 @@ fn main() {
             notif::scan_shortcuts();
             hit::start_hotkey();
             update::start();
+            weather::start();
             // speedo::start();   // parked: Speedo has no control pipe yet, so there is nothing to talk to
             if let Some(d) = debug.clone() {
                 start_debug(win, d);

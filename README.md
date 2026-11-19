@@ -77,6 +77,8 @@ Two kinds, both optional and both yours:
   `powershell -File installer\make-cert.ps1 -Password '...'` makes you a code-signing certificate;
   `powershell -File installer\sign-code.ps1` signs the binaries (set `MIMO_PFX` and `MIMO_PFX_PASS` first).
   In CI set the secrets `MIMO_PFX_B64` (the .pfx, base64) and `MIMO_PFX_PASS` and releases sign themselves.
+  Azure Trusted Signing (~$10/month) and SignPath (free for OSS) are wired too — the full comparison
+  and the exact setup steps live in [docs/signing.md](docs/signing.md).
 
 ## Platforms
 

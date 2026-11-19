@@ -54,6 +54,14 @@ const ICONS = {
   search: `<circle ${S} cx="10.5" cy="10.5" r="6"/><path ${S} d="M15 15l5 5"/>`,
   edit: `<path ${S} d="M4.5 19.5h4l10-10-4-4-10 10zM13 7l4 4"/>`,
   gear: `<circle ${S} cx="12" cy="12" r="2.8"/><path ${S} d="M12 3.5v2.2M12 18.3v2.2M3.5 12h2.2M18.3 12h2.2M6 6l1.6 1.6M16.4 16.4L18 18M18 6l-1.6 1.6M7.6 16.4L6 18"/>`,
+  sun: `<circle ${S} cx="12" cy="12" r="4"/><path ${S} d="M12 3v2.2M12 18.8V21M3 12h2.2M18.8 12H21M5.6 5.6l1.6 1.6M16.8 16.8l1.6 1.6M18.4 5.6l-1.6 1.6M7.2 16.8l-1.6 1.6"/>`,
+  cloud: `<path ${S} d="M7 18.5h10a4 4 0 0 0 .6-7.95A6 6 0 0 0 6 9.6 4.2 4.2 0 0 0 7 18.5z"/>`,
+  rain: `<path ${S} d="M7 15.5h10a4 4 0 0 0 .6-7.95A6 6 0 0 0 6 6.6 4.2 4.2 0 0 0 7 15.5z"/><path ${S} d="M8.5 18.5l-1 2.5M12.5 18.5l-1 2.5M16.5 18.5l-1 2.5"/>`,
+  snow: `<path ${S} d="M7 15.5h10a4 4 0 0 0 .6-7.95A6 6 0 0 0 6 6.6 4.2 4.2 0 0 0 7 15.5z"/><path ${S} d="M8.5 19.5h.01M12.5 19.5h.01M16.5 19.5h.01M10.5 21.5h.01M14.5 21.5h.01"/>`,
+  storm: `<path ${S} d="M7 15.5h10a4 4 0 0 0 .6-7.95A6 6 0 0 0 6 6.6 4.2 4.2 0 0 0 7 15.5z"/><path fill="currentColor" d="M12.6 16.5l-2.1 3.5h1.8l-.8 3 2.9-4.2h-1.9z"/>`,
+  fog: `<path ${S} d="M7 15h10a4 4 0 0 0 .6-7.95A6 6 0 0 0 6 6.1 4.2 4.2 0 0 0 7 15z"/><path ${S} d="M5.5 18h13M7.5 20.5h9"/>`,
+  quote: `<path fill="currentColor" d="M10.2 6.5C7 7.7 5 10.2 5 13.4c0 2.3 1.5 3.9 3.5 3.9 1.8 0 3.2-1.3 3.2-3.1 0-1.7-1.2-3-2.9-3-.3 0-.6 0-.8.1.4-1.6 1.7-3 3.4-3.8zM19 6.5c-3.2 1.2-5.2 3.7-5.2 6.9 0 2.3 1.5 3.9 3.5 3.9 1.8 0 3.2-1.3 3.2-3.1 0-1.7-1.2-3-2.9-3-.3 0-.6 0-.8.1.4-1.6 1.7-3 3.4-3.8z"/>`,
+  gauge: `<path ${S} d="M5 18.5a8 8 0 1 1 14 0"/><path ${S} d="M12 14.5l3.5-4.5"/><circle fill="currentColor" cx="12" cy="14.5" r="1.6"/>`,
 };
 const svg = (name) => `<svg viewBox="0 0 24 24">${ICONS[name] || ''}</svg>`;
 const setIcon = (el, name) => { if (el.dataset.cur !== name) { el.innerHTML = svg(name); el.dataset.cur = name; } };
@@ -82,6 +90,8 @@ const st = {
   menuMode: false,
   // settings
   autoHide: true, hideVideo: true, calendar: 'gregorian', deviceAlerts: true, shelfOn: true, visuals: true,
+  weather: null, events: null, monitors: null,    // the sky report · the day's calendar rows · the screens for the picker
+  lyrics: null, stats: null, lyrAt: -1,           // the words of the track · machine numbers · the highlighted lyric line
   // auto-hide: tuck above the screen edge while an app window sits underneath (always for fullscreen apps)
   covered: false, full: false, tucked: false, peekSince: 0, revealUntil: 0,
   typing: false, holdUntil: 0,                     // a text field is open on the pill / something opened from outside stays put
@@ -472,6 +482,10 @@ function renderStack() {
   if (st.stackKind === 'vault') { renderVault(); return; }
   if (st.stackKind === 'settings') { renderSettings(); return; }
   if (st.stackKind === 'speedo') { renderSpeedo(); return; }
+  if (st.stackKind === 'weather') { renderWeather(); return; }
+  if (st.stackKind === 'events') { renderEvents(); return; }
+  if (st.stackKind === 'lyrics') { renderLyrics(); return; }
+  if (st.stackKind === 'stats') { renderStats(); return; }
   if (st.stackKind === 'tour') { renderTour(); return; }
   $('#stack-clear').textContent = 'Clear all';
   $('#stack-clear').classList.toggle('hidden', !st.history.length);
@@ -479,24 +493,49 @@ function renderStack() {
     const e = document.createElement('div'); e.className = 'row empty'; e.textContent = 'No notifications';
     stackList.appendChild(e); return;
   }
-  st.history.forEach((n, i) => {
-    const row = document.createElement('div'); row.className = 'row'; row.style.setProperty('--i', Math.min(i, 6));
-    const ic = document.createElement('div'); ic.className = 'ic'; paintIcon(ic, n);
-    const app = document.createElement('span'); app.className = 'app dim'; app.textContent = n.app || '';
-    const box = document.createElement('span'); box.className = 'mqbox'; box.dir = 'auto';
-    const mq = document.createElement('span'); mq.className = 'mq';
-    if (n.title) { const b = document.createElement('b'); b.textContent = n.title; mq.appendChild(b); }
-    mq.appendChild(document.createTextNode((n.body || '').replace(/\s+/g, ' ')));
-    box.appendChild(mq);
-    const tm = document.createElement('span'); tm.className = 'tm dim'; tm.textContent = rel(n.ts);
-    const x = document.createElement('button'); x.className = 'x'; x.title = 'Dismiss'; x.innerHTML = svg('close');
-    row.append(ic, app, box, tm, x);
-    row.addEventListener('mouseenter', () => startMarquee(box));
-    row.addEventListener('mouseleave', () => stopMarquee(box));
-    row.addEventListener('click', () => { if (n.aumid) window.mimo.activate(n.id, n.aumid); dropHistory(n.id); });
-    x.addEventListener('click', (e) => { e.stopPropagation(); dropHistory(n.id); window.mimo.dismiss(n.id); });
-    stackList.appendChild(row);
-  });
+  // rows from the same app standing next to each other share one header: the app name, how many, and a
+  // cross that clears the whole group at once
+  let i = 0;
+  while (i < st.history.length) {
+    let j = i;
+    while (j < st.history.length && st.history[j].app && st.history[j].app === st.history[i].app && st.history[j].aumid === st.history[i].aumid) j++;
+    const group = st.history.slice(i, j);
+    if (group.length >= 2 && group[0].app) {
+      const head = document.createElement('div'); head.className = 'row grp'; head.style.setProperty('--i', Math.min(i, 6));
+      const ic = document.createElement('div'); ic.className = 'ic'; paintIcon(ic, group[0]);
+      const app = document.createElement('span'); app.className = 'app'; app.textContent = group[0].app;
+      const count = document.createElement('span'); count.className = 'dim gcount'; count.textContent = group.length;
+      const x = document.createElement('button'); x.className = 'x'; x.title = 'Clear ' + group[0].app; x.innerHTML = svg('close');
+      x.addEventListener('click', (e) => {
+        e.stopPropagation();
+        group.forEach((n) => window.mimo.dismiss(n.id));
+        st.history = st.history.filter((h) => !group.includes(h));
+        renderStack();
+      });
+      head.append(ic, app, count, x);
+      stackList.appendChild(head);
+    }
+    const showApp = !(group.length >= 2 && group[0].app);
+    group.forEach((n, k) => {
+      const row = document.createElement('div'); row.className = 'row'; row.style.setProperty('--i', Math.min(i + k, 6));
+      const ic = document.createElement('div'); ic.className = 'ic'; paintIcon(ic, n);
+      const box = document.createElement('span'); box.className = 'mqbox'; box.dir = 'auto';
+      const mq = document.createElement('span'); mq.className = 'mq';
+      if (showApp && n.app) { const a = document.createElement('span'); a.className = 'app dim'; a.textContent = n.app; mq.appendChild(a); }
+      if (n.title) { const b = document.createElement('b'); b.textContent = n.title; mq.appendChild(b); }
+      mq.appendChild(document.createTextNode((n.body || '').replace(/\s+/g, ' ')));
+      box.appendChild(mq);
+      const tm = document.createElement('span'); tm.className = 'tm dim'; tm.textContent = rel(n.ts);
+      const x = document.createElement('button'); x.className = 'x'; x.title = 'Dismiss'; x.innerHTML = svg('close');
+      row.append(ic, box, tm, x);
+      row.addEventListener('mouseenter', () => startMarquee(box));
+      row.addEventListener('mouseleave', () => stopMarquee(box));
+      row.addEventListener('click', () => { if (n.aumid) window.mimo.activate(n.id, n.aumid); dropHistory(n.id); });
+      x.addEventListener('click', (e) => { e.stopPropagation(); dropHistory(n.id); window.mimo.dismiss(n.id); });
+      stackList.appendChild(row);
+    });
+    i = j;
+  }
 }
 let freshT = 0;
 function setStack(open, kind) {
@@ -693,6 +732,7 @@ function onMedia(m) {
   setIcon($('#b-play'), icon); setIcon($('#t-play'), icon);
   $('#t-play').classList.toggle('hidden', !st.media.active);
   $('#t-track').classList.toggle('hidden', !(st.menuMode && musicOn()));
+  paintLyrics();          // the words ride along with the position, twice a second
   render();
 }
 function setMenuMode(on) {
@@ -711,6 +751,7 @@ const optimisticToggle = () => {      // instant feedback; the helper confirms w
 $('#b-play').addEventListener('click', optimisticToggle);
 $('#t-play').addEventListener('click', optimisticToggle);
 $('#b-next').addEventListener('click', () => window.mimo.media('next'));
+$('#b-lyr').addEventListener('click', () => setStack(!(st.stackOpen && st.stackKind === 'lyrics'), 'lyrics'));
 $('#b-prev').addEventListener('click', () => window.mimo.media('prev'));
 $('#b-more').addEventListener('click', () => setMenuMode(true));
 $('#t-track').addEventListener('click', () => { setStack(false); setMenuMode(false); });
@@ -771,8 +812,13 @@ window.mimo.onHelper((m) => {
   else if (m.t === 'sensors') {
     const was = st.sensors; st.sensors = { mic: m.mic || [], cam: m.cam || [] }; paintStatus();
     if (st.sensors.cam.length && !was.cam.length) showHud('cam', 'Camera', 'in use · ' + st.sensors.cam[0], 2600, 'green pop');
-    else if (st.sensors.mic.length && !was.mic.length) showHud('mic', 'Microphone', 'in use · ' + st.sensors.mic[0], 2600, 'amber pop');
+    if (st.sensors.mic.length && !was.mic.length) showHud('mic', 'Microphone', 'in use · ' + st.sensors.mic[0], 2600, 'amber pop');
   }
+  else if (m.t === 'weather') { st.weather = m; paintStatus(); }
+  else if (m.t === 'events') { st.events = m; if (st.stackOpen && st.stackKind === 'events') renderStack(); }
+  else if (m.t === 'eventSoon') showHud('cal', 'Soon · ' + m.time, m.title, 6000, 'amber pop');
+  else if (m.t === 'lyrics') { st.lyrics = m; st.lyrAt = -1; if (st.stackOpen && st.stackKind === 'lyrics') renderStack(); }
+  else if (m.t === 'stats') { st.stats = m; paintStats(); }
   else if (m.t === 'vol') {
     if (Date.now() - st.volLocalAt < 1000) return;       // echo of our own scrolling
     const v = Math.round(m.level * 100);
@@ -793,6 +839,34 @@ function paintStatus() {
   tn.textContent = !n.online ? 'Offline' : n.vpn ? 'VPN' : n.proxy ? 'Proxy' : '';
   tn.title = n.vpn ? 'VPN: ' + n.vpn : n.proxy ? 'A system proxy is on' : '';
   tn.className = 'tag' + (!n.online ? ' bad' : '');
+  const tw = $('#t-weather'), w = st.weather;
+  const show = st.weatherOn !== false && !!w;
+  tw.style.display = show ? '' : 'none';
+  if (show) {
+    const [, label] = wmo(w.code);
+    tw.textContent = Math.round(w.temp) + '° · ' + label;
+    tw.title = (w.name || 'Weather') + ' — click for the days ahead';
+  }
+}
+
+// The WMO weather codes Open-Meteo sends, mapped to the pill's own icons and words.
+const WMO = [
+  [0, 'sun', 'Clear'], [1, 'sun', 'Mostly clear'], [2, 'cloud', 'Partly cloudy'], [3, 'cloud', 'Cloudy'],
+  [45, 'fog', 'Fog'], [48, 'fog', 'Icy fog'],
+  [51, 'rain', 'Drizzle'], [53, 'rain', 'Drizzle'], [55, 'rain', 'Heavy drizzle'], [56, 'rain', 'Freezing drizzle'], [57, 'rain', 'Freezing drizzle'],
+  [61, 'rain', 'Light rain'], [63, 'rain', 'Rain'], [65, 'rain', 'Heavy rain'], [66, 'rain', 'Freezing rain'], [67, 'rain', 'Freezing rain'],
+  [71, 'snow', 'Light snow'], [73, 'snow', 'Snow'], [75, 'snow', 'Heavy snow'], [77, 'snow', 'Snow grains'],
+  [80, 'rain', 'Light showers'], [81, 'rain', 'Showers'], [82, 'rain', 'Heavy showers'], [85, 'snow', 'Snow showers'], [86, 'snow', 'Snow showers'],
+  [95, 'storm', 'Thunderstorm'], [96, 'storm', 'Storm with hail'], [99, 'storm', 'Storm with hail'],
+];
+function wmo(code) {
+  const hit = WMO.find(([c]) => c === code);
+  if (hit) return hit;
+  if (code >= 95) return ['storm', 'Storm'];
+  if (code >= 71) return ['snow', 'Snow'];
+  if (code >= 51) return ['rain', 'Rain'];
+  if (code >= 45) return ['fog', 'Fog'];
+  return ['sun', 'Clear'];
 }
 
 // ------------------------------------------------------------ audio analysis (system loopback)
@@ -1313,6 +1387,7 @@ $('#t-date').addEventListener('click', () => {
   st.calendar = CALENDARS[(CALENDARS.indexOf(st.calendar) + 1) % CALENDARS.length];
   window.mimo.setCalendar(st.calendar); tick(); render();
 });
+$('#t-weather').addEventListener('click', () => setStack(!(st.stackOpen && st.stackKind === 'weather'), 'weather'));
 const mmss = (ms) => { const s = Math.ceil(ms / 1000), h = Math.floor(s / 3600); return (h ? h + ':' : '') + pad(Math.floor(s % 3600 / 60)) + ':' + pad(s % 60); };
 function tick() {
   const d = new Date(), hm = pad(d.getHours()) + ':' + pad(d.getMinutes());
@@ -1830,6 +1905,15 @@ const SETTINGS_UI = [
   ['button', 'tour', 'What MIMO can do', 'Show me'],
   ['toggle', 'autoStart', 'Start with Windows'],
   ['toggle', 'autoUpdate', 'Update automatically'],
+  ['monitors', 'monitor', 'Screen'],
+  ['toggle', 'weatherOn', 'Weather'],
+  ['button', 'weatherCity', 'Weather city…', 'Set'],
+  ['button', 'calendarFile', 'Calendar file…', 'Set'],
+  ['button', 'events', 'Upcoming events', 'Open'],
+  ['toggle', 'lyricsOn', 'Lyrics for the playing track'],
+  ['toggle', 'statsOn', 'System stats'],
+  ['button', 'stats', 'System stats', 'Open'],
+  ['seg', 'shape', 'Pill shape', [['island', 'Island'], ['notch', 'Notch']]],
   ['seg', 'face', 'Resting pill shows', [['eyes', 'Eyes'], ['clock', 'Clock']]],
   ['toggle', 'idleWalk', 'Come out and walk when idle'],
   ['seg', 'calendar', 'Date', [['gregorian', 'Greg.'], ['shamsi', 'Shamsi'], ['shamsi-fa', 'شمسی'], ['both', 'Both']]],
@@ -1864,6 +1948,154 @@ async function installUpdate(feedback) {
     return;
   }
   if (feedback) feedback(r === 'none' ? 'Nothing to install' : 'Could not check');
+}
+
+// ------------------------------------------------------------ weather and calendar, as stacks under the pill
+function dayName(iso) {   // "2026-11-20" → "Fri 20 Nov"
+  const [y, m, d] = iso.split('-').map(Number);
+  return new Date(y, m - 1, d).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
+}
+function renderWeather() {
+  $('#stack-clear').classList.add('hidden');
+  const w = st.weather;
+  if (!w) {
+    const e = document.createElement('div'); e.className = 'row empty'; e.textContent = 'No report yet — pick a city in Settings';
+    stackList.appendChild(e); return;
+  }
+  const [ic, label] = wmo(w.code);
+  const now = document.createElement('div'); now.className = 'row set sp wx';
+  const box = document.createElement('div'); box.className = 'ic plain'; box.innerHTML = svg(ic);
+  const l = document.createElement('span'); l.className = 'lbl';
+  const b = document.createElement('b'); b.textContent = Math.round(w.temp) + '° · ' + label;
+  const d = document.createElement('span'); d.className = 'dim'; d.textContent = w.name || 'Now';
+  l.append(b, d); now.append(box, l);
+  stackList.appendChild(now);
+  (w.days || []).slice(1).forEach((day) => {
+    const row = document.createElement('div'); row.className = 'row set';
+    const ic2 = document.createElement('div'); ic2.className = 'ic plain'; ic2.innerHTML = svg(wmo(day.code)[0]);
+    const l2 = document.createElement('span'); l2.className = 'lbl';
+    const b2 = document.createElement('b'); b2.textContent = dayName(day.date);
+    const d2 = document.createElement('span'); d2.className = 'dim'; d2.textContent = wmo(day.code)[1];
+    l2.append(b2, d2);
+    const t = document.createElement('span'); t.className = 'dim'; t.textContent = Math.round(day.hi) + '° / ' + Math.round(day.lo) + '°';
+    row.append(ic2, l2, t);
+    stackList.appendChild(row);
+  });
+}
+function renderEvents() {
+  $('#stack-clear').classList.add('hidden');
+  if (!st.events) {
+    const e = document.createElement('div'); e.className = 'row empty'; e.textContent = 'No calendar file yet — set one in Settings';
+    stackList.appendChild(e); return;
+  }
+  st.events.days.forEach((day) => {
+    const head = document.createElement('div'); head.className = 'row empty wide'; head.textContent = day.label;
+    stackList.appendChild(head);
+    if (!day.items.length) {
+      const e = document.createElement('div'); e.className = 'row empty'; e.textContent = 'Nothing planned';
+      stackList.appendChild(e); return;
+    }
+    day.items.forEach((ev) => {
+      const row = document.createElement('div'); row.className = 'row set';
+      const ic = document.createElement('div'); ic.className = 'ic plain'; ic.innerHTML = svg('cal');
+      const l = document.createElement('span'); l.className = 'lbl'; l.dir = 'auto';
+      const b = document.createElement('b'); b.textContent = ev.title;
+      const d = document.createElement('span'); d.className = 'dim'; d.textContent = ev.allDay ? 'All day' : ev.time;
+      l.append(b, d);
+      row.append(ic, l);
+      stackList.appendChild(row);
+    });
+  });
+}
+function renderLyrics() {
+  $('#stack-clear').classList.add('hidden');
+  st.lyrAt = -1;
+  const L = st.lyrics;
+  if (!L || (!L.synced && !L.plain)) {
+    const e = document.createElement('div'); e.className = 'row empty';
+    e.textContent = st.media.active ? 'No lyrics found for this track' : 'Play something, then open the lyrics';
+    stackList.appendChild(e); return;
+  }
+  if (!L.synced) {
+    L.plain.split(/\r?\n/).forEach((text) => {
+      const row = document.createElement('div'); row.className = 'row lyr';
+      const b = document.createElement('b'); b.dir = 'auto'; b.textContent = text || ' ';
+      row.appendChild(b); stackList.appendChild(row);
+    });
+    return;
+  }
+  L.lines.forEach(([ms, text]) => {
+    const row = document.createElement('div'); row.className = 'row lyr sync'; row.dataset.t = ms;
+    const b = document.createElement('b'); b.dir = 'auto'; b.textContent = text || '♪';
+    row.appendChild(b); stackList.appendChild(row);
+  });
+  paintLyrics(true);
+}
+// Runs on every media update (twice a second) while the lyrics are open: lights the line being sung.
+function paintLyrics(force) {
+  if (!(st.stackOpen && st.stackKind === 'lyrics')) return;
+  const L = st.lyrics;
+  if (!L || !L.synced) return;
+  const pos = st.media.pos || 0;
+  const rows = [...stackList.children];
+  let idx = -1;
+  for (let i = 0; i < L.lines.length; i++) if (L.lines[i][0] <= pos + 200) idx = i;
+  if (idx === st.lyrAt && !force) return;
+  st.lyrAt = idx;
+  rows.forEach((row, i) => {
+    row.classList.toggle('on', i === idx);
+    row.classList.toggle('past', i < idx);
+  });
+  const cur = rows[idx];
+  if (cur) stackList.scrollTop = Math.max(0, cur.offsetTop - stackList.clientHeight / 2 + cur.offsetHeight / 2);
+}
+const rate = (bps) => bps >= 1_000_000 ? (bps / 1e6).toFixed(1) + ' MB/s' : bps >= 1000 ? (bps / 1e3).toFixed(0) + ' KB/s' : bps + ' B/s';
+function renderStats() {
+  $('#stack-clear').classList.add('hidden');
+  if (!st.stats) {
+    const off = st.settings && st.settings.statsOn === false;
+    const e = document.createElement('div'); e.className = 'row empty';
+    e.textContent = off ? 'System stats are off — turn them on below' : 'Waiting for the first reading…';
+    stackList.appendChild(e); return;
+  }
+  const mk = (label) => {
+    const row = document.createElement('div'); row.className = 'row set stat';
+    const l = document.createElement('span'); l.className = 'lbl'; l.textContent = label;
+    const bar = document.createElement('div'); bar.className = 'sbar';
+    const fill = document.createElement('i');
+    bar.appendChild(fill);
+    const v = document.createElement('span'); v.className = 'dim sval';
+    row.append(l, bar, v);
+    stackList.appendChild(row);
+    return { fill, v };
+  };
+  st.statsUi = { cpu: mk('CPU'), ram: mk('Memory'), net: mk('Network') };
+  paintStats();
+}
+function paintStats() {
+  const ui = st.statsUi, s = st.stats;
+  if (!(st.stackOpen && st.stackKind === 'stats') || !ui || !s) return;
+  ui.cpu.fill.style.width = clamp(s.cpu, 0, 100) + '%';
+  ui.cpu.v.textContent = s.cpu + '%';
+  const pct = s.ramTotal ? Math.round(s.ramUsed / s.ramTotal * 100) : 0;
+  ui.ram.fill.style.width = pct + '%';
+  ui.ram.v.textContent = pct + '% · ' + (s.ramUsed / 1073741824).toFixed(1) + '/' + (s.ramTotal / 1073741824).toFixed(1) + ' GB';
+  const top = Math.max(s.down, s.up, 1);
+  ui.net.fill.style.width = Math.min(100, Math.round(s.down / top * 80)) + '%';
+  ui.net.v.textContent = '↓ ' + rate(s.down) + '  ↑ ' + rate(s.up);
+}
+async function weatherPick() {
+  const v = await ask({ icon: 'sun', placeholder: 'City for the weather — Tehran, Paris…', value: (st.settings && st.settings.weatherName) || '', hint: '↵' });
+  if (v === null || !v.trim()) return;
+  const r = await window.mimo.weatherCity(v.trim());
+  if (r && r.ok) showHud('sun', 'Weather', r.name, 2400, 'green pop');
+  else showHud('sun', 'Weather', 'Could not find that city', 2400, 'red pop');
+}
+async function calendarPick() {
+  const v = await ask({ icon: 'cal', placeholder: 'A .ics file, or a folder holding them', value: (st.settings && st.settings.calendarFile) || '', hint: '↵' });
+  if (v === null) return;
+  window.mimo.setSetting('calendarFile', v.trim());
+  showHud('cal', 'Calendar', v.trim() ? 'Reading the file(s)' : 'Calendar off', 2200, 'plain');
 }
 function renderSettings() {
   $('#stack-clear').classList.add('hidden');
@@ -1924,8 +2156,27 @@ function renderSettings() {
       const mk = (icon, d) => { const bt = document.createElement('button'); bt.className = 'ib small'; bt.innerHTML = svg(icon); bt.addEventListener('click', () => window.mimo.setSetting(key, clamp(cur + d, a, b))); return bt; };
       const num = document.createElement('span'); num.className = 'num'; num.textContent = cur + unit;
       row.append(mk('minus', -1), num, mk('plus', 1));
+    } else if (type === 'monitors') {
+      const seg = document.createElement('div'); seg.className = 'seg';
+      const list = st.monitors && st.monitors.length ? st.monitors : [{ i: 0, primary: true }];
+      list.forEach((mo) => {
+        const bt = document.createElement('button'); bt.textContent = mo.i + 1;
+        if (mo.primary) bt.title = 'Screen ' + (mo.i + 1) + ' — main';
+        if ((s[key] || 0) === mo.i) bt.className = 'on';
+        bt.addEventListener('click', () => window.mimo.setSetting('monitor', mo.i));
+        seg.appendChild(bt);
+      });
+      row.appendChild(seg);
     } else if (type === 'button') {
-      const bt = document.createElement('button'); bt.className = 'go'; bt.textContent = a; bt.addEventListener('click', () => { if (key === 'tour') setStack(true, 'tour'); else window.mimo.action(key); });
+      const bt = document.createElement('button'); bt.className = 'go'; bt.textContent = a;
+      bt.addEventListener('click', () => {
+        if (key === 'tour') setStack(true, 'tour');
+        else if (key === 'weatherCity') weatherPick();
+        else if (key === 'calendarFile') calendarPick();
+        else if (key === 'events') setStack(true, 'events');
+        else if (key === 'stats') setStack(true, 'stats');
+        else window.mimo.action(key);
+      });
       row.appendChild(bt);
     }
     stackList.appendChild(row);
@@ -2352,6 +2603,9 @@ const applySettings = (s) => {
   st.calendar = CALENDARS.includes(s.calendar) ? s.calendar : 'gregorian';
   st.face = s.face === 'clock' ? 'clock' : 'eyes';
   st.idle.enabled = s.idleWalk !== false;
+  st.weatherOn = s.weatherOn !== false; paintStatus();
+  st.shape = s.shape === 'notch' ? 'notch' : 'island';
+  island.classList.toggle('notch', st.shape === 'notch');
   st.settings = s; st.lastUser = s.lastUser || '';
   st.gen.len = Number(s.vaultLength) || 18; st.gen.symbols = s.vaultSymbols !== false;
   if (st.stackOpen && st.stackKind === 'settings') { const y = stackList.scrollTop; renderStack(); stackList.scrollTop = y; }
@@ -2481,6 +2735,7 @@ window.mimo.onDownload((d) => {
   showNotif({ app: 'Download finished', title: d.name, body: d.size + (d.risky ? ' · click to show in folder' : ' · click to open'), icon: d.icon, action: 'download', path: d.path });
 });
 window.mimo.onSettings(applySettings);
+window.mimo.monitorsList().then((l) => { if (Array.isArray(l) && l.length) { st.monitors = l; if (st.stackOpen && st.stackKind === 'settings') renderStack(); } });
 window.mimo.getSettings().then(applySettings);
 paintVol(); tick(); updateBadge(); paintStatus(); render();
 window.__mimo = { st, timer, showNotif, onNotif, onMedia, render, setStack, showHud, setShelf, quickNote, parseReminder, guessSite, emote, ask, tick, smart, calc, jalaliToGregorian, levels, fake: (v) => { st.fakeLevels = v; } };   // debug hooks

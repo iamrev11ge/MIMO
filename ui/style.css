@@ -463,5 +463,30 @@ body.daylight #island .sep { background: rgba(24, 34, 47, .25); }
 .badge.dot { min-width: 8px; width: 8px; height: 8px; padding: 0; top: 2px; right: 1px; background: #34d399; box-shadow: 0 0 0 2px #000; }
 .row.set.upd { box-shadow: 0 3px 12px rgba(0, 0, 0, .35), inset 0 0 0 1.5px rgba(52, 211, 153, .55); }
 .row.set.upd .ic.plain { width: 30px; height: 30px; border-radius: 50%; color: #34d399; background-color: rgba(52, 211, 153, .14); }
+.row.set.wx .ic.plain { width: 30px; height: 30px; border-radius: 50%; color: #fbbf24; background-color: rgba(251, 191, 36, .14); }
 .row.set .go.solid { background: #34d399; color: #04130c; font-weight: 600; }
 .row.set .go.solid:hover { background: #fff; color: #000; }
+
+/* ------------------------------------------------------------ notch mode: a camera-cutout hugging the top edge */
+#island.notch { top: 0; height: calc(var(--h) - 4px); border-radius: 0 0 14px 14px; }
+#island.notch.hover { transform: translateX(-50%) scale(1.015); }
+#island.notch.tucked { transform: translateX(-50%) translateY(-41px); }
+
+/* ------------------------------------------------------------ notification groups */
+.row.grp { cursor: default; background: rgba(255, 255, 255, .05); box-shadow: none; height: 28px; font-size: 11.5px; }
+.row.grp .app { color: rgba(255, 255, 255, .85); font-weight: 600; }
+.row.grp .gcount { background: rgba(255, 255, 255, .14); border-radius: 8px; padding: 0 7px; font-size: 10.5px; }
+.row.grp .x { width: 20px; height: 20px; }
+
+/* ------------------------------------------------------------ lyrics */
+.row.lyr { height: auto; min-height: 28px; padding: 4px 16px; justify-content: center; opacity: .45; background: none; box-shadow: none; transition: opacity .25s; }
+.row.lyr b { font-weight: 500; font-size: 12.5px; line-height: 1.45; text-align: center; color: rgba(255, 255, 255, .78); }
+.row.lyr.on { opacity: 1; background: none; }
+.row.lyr.on b { color: #fff; font-weight: 650; font-size: 13.5px; }
+.row.lyr.past { opacity: .22; }
+
+/* ------------------------------------------------------------ system stats */
+.row.set.stat { gap: 8px; }
+.row.set.stat .sbar { flex: 1; height: 6px; border-radius: 3px; background: rgba(255, 255, 255, .12); overflow: hidden; }
+.row.set.stat .sbar i { display: block; height: 100%; width: 0; border-radius: 3px; background: linear-gradient(90deg, var(--c1, #5b3df5), var(--c2, #8f6bff)); transition: width .4s var(--ease); }
+.row.set.stat .sval { font-size: 11px; min-width: 86px; text-align: right; font-variant-numeric: tabular-nums; white-space: pre; }

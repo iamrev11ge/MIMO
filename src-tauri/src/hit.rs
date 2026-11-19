@@ -8,15 +8,17 @@ use std::sync::atomic::{AtomicBool, AtomicIsize, AtomicU64, Ordering::SeqCst};
 use std::time::{Duration, Instant};
 
 use serde_json::json;
+use windows::core::BOOL;
 use windows::Win32::Foundation::*;
+use windows::Win32::Graphics::Gdi::{EnumDisplayMonitors, GetMonitorInfoW, HMONITOR, HDC, MONITORINFO};
 use windows::Win32::System::SystemInformation::GetTickCount;
 use windows::Win32::UI::HiDpi::GetDpiForWindow;
 use windows::Win32::UI::Input::KeyboardAndMouse::*;
 use windows::Win32::UI::WindowsAndMessaging::*;
 
-use crate::sys;
+use crate::{settings, sys};
 
-// First guess only: place() stretches the window over the whole primary screen as soon as it runs,
+// First guess only: place() stretches the window over the whole chosen screen as soon as it runs,
 // so the character can walk anywhere and the eyes can follow the cursor everywhere.
 pub const WIN_W: f64 = 700.0;
 pub const WIN_H: f64 = 430.0;
@@ -54,12 +56,52 @@ unsafe fn apply_style(h: HWND) {
     }
 }
 
-/// The window covers the whole primary screen: the pill sits at the top, but the character walks
+/// One screen Windows knows about. The island covers exactly one of them, chosen in the settings.
+#[derive(Clone, Copy)]
+struct Screen {
+    rect: RECT,
+    primary: bool,
+}
+/// The screens, primary first then left to right — that order is the numbering the settings show.
+fn screens() -> Vec<Screen> {
+    unsafe {
+        let mut list: Vec<Screen> = Vec::new();
+        let _ = EnumDisplayMonitors(None, None, Some(collect_screen), LPARAM(&mut list as *mut _ as isize));
+        list.sort_by_key(|s| (!s.primary, s.rect.left, s.rect.top));
+        if list.is_empty() {
+            // nothing came back (a locked screen, an odd driver): the primary, as Windows measures it
+            list.push(Screen { rect: RECT { left: 0, top: 0, right: GetSystemMetrics(SM_CXSCREEN), bottom: GetSystemMetrics(SM_CYSCREEN) }, primary: true });
+        }
+        list
+    }
+}
+unsafe extern "system" fn collect_screen(h: HMONITOR, _dc: HDC, rect: *mut RECT, data: LPARAM) -> BOOL {
+    let mut info = MONITORINFO { cbSize: std::mem::size_of::<MONITORINFO>() as u32, ..Default::default() };
+    let primary = GetMonitorInfoW(h, &mut info).as_bool() && info.dwFlags & 1 != 0;
+    if let Some(l) = (data.0 as *mut Vec<Screen>).as_mut() {
+        l.push(Screen { rect: *rect, primary });
+    }
+    BOOL(1)
+}
+/// The screen the island lives on: the one picked in the settings, or the primary when that one is gone.
+fn chosen() -> Screen {
+    let list = screens();
+    let want = settings::get("monitor").as_u64().unwrap_or(0) as usize;
+    list.get(want).copied().unwrap_or(list[0])
+}
+/// What the settings page needs to draw its monitor picker.
+pub fn monitors_json() -> serde_json::Value {
+    let list = screens();
+    json!(list.iter().enumerate().map(|(i, s)| json!({ "i": i, "primary": s.primary, "w": s.rect.right - s.rect.left, "h": s.rect.bottom - s.rect.top })).collect::<Vec<_>>())
+}
+
+/// The window covers the whole chosen screen: the pill sits at its top, but the character walks
 /// anywhere on it. It stays click-through everywhere except where the page says the cursor is on it.
 unsafe fn place(h: HWND) {
-    let x = 0;
-    let y = OFFSET_Y.load(SeqCst) as i32;
-    let (w, hgt) = (GetSystemMetrics(SM_CXSCREEN), GetSystemMetrics(SM_CYSCREEN));
+    let s = chosen();
+    let x = s.rect.left;
+    let y = s.rect.top + OFFSET_Y.load(SeqCst) as i32;
+    let (w, hgt) = (s.rect.right - s.rect.left, s.rect.bottom - s.rect.top);
     let r = sys::rect_of(h);
     if r.left != x || r.top != y || r.right - r.left != w || r.bottom - r.top != hgt {
         let _ = SetWindowPos(h, None, x, y, w, hgt, SWP_NOZORDER | SWP_NOACTIVATE);

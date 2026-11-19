@@ -61,6 +61,8 @@ window.mimo = {
   setSetting: (key, value) => quiet(invoke('settings_set', { key, value })),
   setCalendar: (value) => quiet(invoke('settings_set', { key: 'calendar', value })),
   action: (name) => quiet(invoke('action', { name })),
+  monitorsList: () => invoke('monitors_list').catch(() => []),
+  weatherCity: (name) => invoke('weather_city', { name }).catch(() => ({ ok: false })),
   ocrDone: (text, conf) => quiet(invoke('ocr_done', { text: String(text || ''), conf: Number(conf) || 0 })),
   speedo: (cmd, more) => invoke('speedo_cmd', { cmd, ...(more || {}) }).catch(() => ({ ok: false })),
   updateCheck: () => invoke('update_check').catch(() => 'failed'),

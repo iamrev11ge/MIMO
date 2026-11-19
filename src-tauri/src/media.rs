@@ -126,6 +126,7 @@ impl Media {
             self.last_key = key.clone();
             let data = props.Thumbnail().ok().and_then(|t| read_stream(t.OpenReadAsync())).map(|b| sys::b64(&b));
             sys::helper(json!({ "t": "thumb", "key": key, "data": data }));
+            crate::lyrics::on_track(&title, &artist, dur, &key); // the words, fetched off-thread
         }
     }
 

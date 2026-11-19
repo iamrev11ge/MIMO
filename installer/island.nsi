@@ -19,7 +19,10 @@ VIProductVersion "${VERSION}.0"
 VIAddVersionKey "ProductName" "${NAME}"
 VIAddVersionKey "FileDescription" "${NAME} installer"
 VIAddVersionKey "FileVersion" "${VERSION}"
+VIAddVersionKey "ProductVersion" "${VERSION}"
+VIAddVersionKey "CompanyName" "iamrev11ge"
 VIAddVersionKey "LegalCopyright" "MIT License"
+VIAddVersionKey "OriginalFilename" "MIMO-Setup.exe"
 Page instfiles
 UninstPage uninstConfirm
 UninstPage instfiles

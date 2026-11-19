@@ -17,6 +17,7 @@ webview2-com = "0.39"
 windows-core = "0.62"
 windows-future = "0.3"
 ed25519-compact = { version = "2", default-features = false, features = ["std"] }
+sysinfo = { version = "0.33", default-features = false, features = ["system", "network"] }
 
 [dependencies.windows]
 version = "0.62"

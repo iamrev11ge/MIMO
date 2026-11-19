@@ -54,7 +54,7 @@ unsafe fn cover_state(me: u32) -> i32 {
     let c = sys::class_of(root);
     if c == "Progman" || c == "WorkerW" { 0 } else { 1 }
 }
-/// true when the active window fills the whole primary screen (a movie, a game, a presentation)
+/// true when the active window fills the whole screen the island lives on (a movie, a game, a presentation)
 unsafe fn foreground_fullscreen(me: u32) -> bool {
     let h = GetForegroundWindow();
     if h.0.is_null() || sys::pid_of(h) == me {
@@ -64,10 +64,14 @@ unsafe fn foreground_fullscreen(me: u32) -> bool {
     if c == "Progman" || c == "WorkerW" || c == "Shell_TrayWnd" {
         return false;
     }
+    let mine = MonitorFromWindow(sys::hwnd(), MONITOR_DEFAULTTONEAREST);
+    if MonitorFromWindow(h, MONITOR_DEFAULTTONEAREST) != mine {
+        return false; // it plays on another screen; that one's island (if any) is not ours
+    }
     let r = sys::rect_of(h);
     let mut mi = MONITORINFO { cbSize: std::mem::size_of::<MONITORINFO>() as u32, ..Default::default() };
-    if !GetMonitorInfoW(MonitorFromWindow(h, MONITOR_DEFAULTTONEAREST), &mut mi).as_bool() || mi.dwFlags & 1 == 0 {
-        return false; // the island lives on the primary screen only
+    if !GetMonitorInfoW(mine, &mut mi).as_bool() {
+        return false;
     }
     let m = mi.rcMonitor;
     r.left <= m.left && r.top <= m.top && r.right >= m.right && r.bottom >= m.bottom
@@ -236,6 +240,12 @@ pub fn start() {
             }
             if start.elapsed() > Duration::from_secs(1) && every("sensors", 1500) {
                 watch.poll_sensors();
+            }
+            if start.elapsed() > Duration::from_secs(20) && every("events", 60_000) {
+                crate::calendar::poll(); // local .ics files: cheap to reread, reminders ride along
+            }
+            if start.elapsed() > Duration::from_secs(2) && every("stats", 2000) {
+                crate::stats::poll(); // CPU, memory and network speed, only while the user keeps it on
             }
             if start.elapsed() > Duration::from_secs(2) && every("bt", 3000) {
                 bt.poll();

@@ -28,6 +28,7 @@ pub enum Cmd {
     Dismiss(u32),
     ClearAll,
     Act(String, String),
+    Reply(String, String, String),
 }
 static TX: OnceLock<Mutex<Sender<Cmd>>> = OnceLock::new();
 pub fn send(c: Cmd) {
@@ -198,6 +199,7 @@ pub fn start() {
                         Cmd::Dismiss(id) => notifs.dismiss(id),
                         Cmd::ClearAll => notifs.clear_all(),
                         Cmd::Act(id, aumid) => notifs.activate(&id, &aumid),
+                        Cmd::Reply(id, aumid, text) => crate::notif::paste_reply(&id, &aumid, &text),
                     }
                 }
                 media.poll();

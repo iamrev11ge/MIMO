@@ -26,6 +26,7 @@ window.mimo = {
   setViz: (v) => quiet(invoke('set_viz', { on: !!v })),
 
   activate: (id, aumid) => quiet(invoke('notif_act', { id: String(id), aumid: aumid || '' })),
+  notifReply: (id, aumid, text) => quiet(invoke('notif_reply', { id: String(id), aumid: aumid || '', text: String(text || '') })),
   dismiss: (id) => quiet(invoke('notif_dismiss', { id: String(id) })),
   clearNotifs: () => quiet(invoke('notif_clear')),
   hintShown: () => quiet(invoke('settings_set', { key: 'dndHint', value: true })),
@@ -64,6 +65,8 @@ window.mimo = {
   monitorsList: () => invoke('monitors_list').catch(() => []),
   weatherCity: (name) => invoke('weather_city', { name }).catch(() => ({ ok: false })),
   pluginsFolder: () => quiet(invoke('plugins_folder')),
+  dockLaunch: (path) => quiet(invoke('dock_launch', { path })),
+  dockFolder: () => quiet(invoke('dock_folder')),
   ocrDone: (text, conf) => quiet(invoke('ocr_done', { text: String(text || ''), conf: Number(conf) || 0 })),
   speedo: (cmd, more) => invoke('speedo_cmd', { cmd, ...(more || {}) }).catch(() => ({ ok: false })),
   updateCheck: () => invoke('update_check').catch(() => 'failed'),

@@ -64,13 +64,50 @@ const ICONS = {
   fog: `<path ${S} d="M7 15h10a4 4 0 0 0 .6-7.95A6 6 0 0 0 6 6.1 4.2 4.2 0 0 0 7 15z"/><path ${S} d="M5.5 18h13M7.5 20.5h9"/>`,
   quote: `<path fill="currentColor" d="M10.2 6.5C7 7.7 5 10.2 5 13.4c0 2.3 1.5 3.9 3.5 3.9 1.8 0 3.2-1.3 3.2-3.1 0-1.7-1.2-3-2.9-3-.3 0-.6 0-.8.1.4-1.6 1.7-3 3.4-3.8zM19 6.5c-3.2 1.2-5.2 3.7-5.2 6.9 0 2.3 1.5 3.9 3.5 3.9 1.8 0 3.2-1.3 3.2-3.1 0-1.7-1.2-3-2.9-3-.3 0-.6 0-.8.1.4-1.6 1.7-3 3.4-3.8z"/>`,
   gauge: `<path ${S} d="M5 18.5a8 8 0 1 1 14 0"/><path ${S} d="M12 14.5l3.5-4.5"/><circle fill="currentColor" cx="12" cy="14.5" r="1.6"/>`,
+  reply: `<path ${S} d="M9.5 7L4 12l5.5 5"/><path ${S} d="M4 12h9.5a6.5 6.5 0 0 1 6.5 6.5V19"/>`,
+  grid: `<rect ${S} x="4" y="4" width="7" height="7" rx="1.8"/><rect ${S} x="13" y="4" width="7" height="7" rx="1.8"/><rect ${S} x="4" y="13" width="7" height="7" rx="1.8"/><rect ${S} x="13" y="13" width="7" height="7" rx="1.8"/>`,
 };
 const svg = (name) => `<svg viewBox="0 0 24 24">${ICONS[name] || ''}</svg>`;
 const setIcon = (el, name) => { if (el.dataset.cur !== name) { el.innerHTML = svg(name); el.dataset.cur = name; } };
 $$('[data-icon]').forEach((el) => setIcon(el, el.dataset.icon));
 const badge = document.createElement('i'); badge.className = 'badge'; $('#t-inbox').appendChild(badge);
 const shelfBadge = document.createElement('i'); shelfBadge.className = 'badge quiet'; $('#t-shelf').appendChild(shelfBadge);
-const gearBadge = document.createElement('i'); gearBadge.className = 'badge dot'; gearBadge.title = t('updateDot'); $('#t-gear').appendChild(gearBadge);
+const gearBadge = document.createElement('i'); gearBadge.className = 'badge dot'; gearBadge.dataset.tip = t('updateDot'); $('#t-gear').appendChild(gearBadge);
+
+// ------------------------------------------------------------ tooltips
+// Windows' own balloons cannot shape Persian (they come out as detached letters), so the pill draws its
+// own small bubble. The title attribute is grabbed on the way in and moved to data-tip, so the native
+// tooltip never even appears — and every element that ever gets a title is covered, whenever it is made.
+const tipEl = document.createElement('div'); tipEl.id = 'tip'; document.body.appendChild(tipEl);
+let tipT = 0, tipFor = null;
+function tipShow(el) {
+  const txt = (el.dataset.tip || el.title || '').trim();
+  if (!txt) return;
+  if (el.title) { el.dataset.tip = el.title; el.removeAttribute('title'); }
+  tipEl.textContent = txt; tipEl.dir = 'auto';
+  tipEl.classList.add('on');
+  const r = el.getBoundingClientRect(), tb = tipEl.getBoundingClientRect();
+  const x = clamp(r.left + r.width / 2 - tb.width / 2, 6, Math.max(6, window.innerWidth - tb.width - 6));
+  let y = r.bottom + 8;
+  if (y + tb.height > window.innerHeight - 6) y = r.top - tb.height - 8;   // near the screen edge: flip above
+  tipEl.style.left = Math.round(x) + 'px'; tipEl.style.top = Math.round(Math.max(6, y)) + 'px';
+}
+function tipHide() { clearTimeout(tipT); tipEl.classList.remove('on'); tipFor = null; }
+document.addEventListener('pointerover', (e) => {
+  const el = e.target.closest && e.target.closest('[title], [data-tip]');
+  if (!el || el === tipFor) return;
+  tipHide();
+  tipFor = el;
+  clearTimeout(tipT);
+  tipT = setTimeout(() => { if (tipFor === el) tipShow(el); }, 350);
+});
+document.addEventListener('pointerout', (e) => {
+  if (!tipFor) return;
+  const to = e.relatedTarget;
+  if (!tipFor.contains(to) && (tipFor.contains(e.target) || e.target === tipFor)) tipHide();
+}, true);
+document.addEventListener('pointerdown', tipHide, true);
+window.addEventListener('blur', tipHide);
 
 // ------------------------------------------------------------ state
 const st = {
@@ -94,6 +131,7 @@ const st = {
   autoHide: true, hideVideo: true, calendar: 'gregorian', deviceAlerts: true, shelfOn: true, visuals: true,
   weather: null, events: null, monitors: null,    // the sky report · the day's calendar rows · the screens for the picker
   pluginSpecs: [], plugins: {},                   // the plugins folder · their newest answers, by id
+  dock: [],                                       // the dock folder's programs (name, icon, path)
   lyrics: null, stats: null, lyrAt: -1,           // the words of the track · machine numbers · the highlighted lyric line
   // auto-hide: tuck above the screen edge while an app window sits underneath (always for fullscreen apps)
   covered: false, full: false, tucked: false, peekSince: 0, revealUntil: 0,
@@ -371,6 +409,7 @@ function nextNotif() {
   box.firstElementChild.textContent = body;
   box.classList.toggle('empty', !body);
   st.notif = n;
+  $('#n-reply').classList.toggle('hidden', !(n.aumid && !n.action && st.quickReply !== false));
   bump(); render();
   startMarquee(box, true);                 // long text travels while it is up, but never keeps the notification up
   const base = st.notifMs || 4000;
@@ -401,6 +440,20 @@ views.notif.addEventListener('click', () => {
     else if (n.action === 'tour') { st.holdUntil = Date.now() + 9000; st.revealUntil = Date.now() + 9000; setStack(true, 'tour'); }
     else if (n.aumid) { window.mimo.activate(n.id, n.aumid); dropHistory(n.id); }
   }
+  endNotif();
+});
+// reply to the notification right from the pill: the answer goes onto the clipboard, the chat opens
+// (the exact chat, via the notification's own launch arguments) and receives a Ctrl+V — sending it is
+// still the user's own Enter, so nothing is ever typed into a window we did not bring up.
+$('#n-reply').addEventListener('click', async (e) => {
+  e.stopPropagation();
+  const n = st.notif;
+  if (!n || !n.aumid) return;
+  const { id, aumid } = n;
+  const text = await ask({ icon: 'reply', placeholder: t('replyPlaceholder'), hint: '↵' });
+  if (text === null || !text.trim()) return;
+  window.mimo.notifReply(id, aumid, text.trim());
+  showHud('reply', t('replySent'), t('replyPasted'), 2800, 'blue pop');
   endNotif();
 });
 
@@ -485,6 +538,7 @@ function renderStack() {
   if (st.stackKind === 'files') { renderFiles(); return; }
   if (st.stackKind === 'clips') { renderClips(); return; }
   if (st.stackKind === 'notes') { renderNotes(); return; }
+  if (st.stackKind === 'dock') { renderDock(); return; }
   if (st.stackKind === 'vault') { renderVault(); return; }
   if (st.stackKind === 'settings') { renderSettings(); return; }
   if (st.stackKind === 'speedo') { renderSpeedo(); return; }
@@ -558,6 +612,7 @@ function setStack(open, kind) {
   $('#t-clips').classList.toggle('active', open && st.stackKind === 'clips');
   $('#t-notes').classList.toggle('active', open && st.stackKind === 'notes');
   $('#t-vault').classList.toggle('active', open && st.stackKind === 'vault');
+  $('#t-dock').classList.toggle('active', open && st.stackKind === 'dock');
   $('#t-gear').classList.toggle('active', open && st.stackKind === 'settings');
   $('#t-speedo').classList.toggle('active', open && st.stackKind === 'speedo');
   if (open && kind === 'speedo') loadLocations();
@@ -832,6 +887,11 @@ window.mimo.onHelper((m) => {
     st.plugins[m.id] = m;
     renderPluginTags();
     if (st.stackOpen && st.stackKind === 'plugin:' + m.id) renderStack();
+  }
+  else if (m.t === 'dockApps') {
+    st.dock = Array.isArray(m.apps) ? m.apps : [];
+    $('#t-dock').classList.toggle('hidden', st.dockOn === false || !st.dock.length);
+    if (st.stackOpen && st.stackKind === 'dock') renderStack();
   }
   else if (m.t === 'lyrics') { st.lyrics = m; st.lyrAt = -1; if (st.stackOpen && st.stackKind === 'lyrics') renderStack(); }
   else if (m.t === 'stats') { st.stats = m; paintStats(); }
@@ -1462,6 +1522,7 @@ $$('[data-act]').forEach((b) => b.addEventListener('click', async () => {
   if (a === 'notes') { if (st.stackOpen && st.stackKind === 'notes') setStack(false); else quickNote(); return; }
   if (a === 'vault') { setStack(!(st.stackOpen && st.stackKind === 'vault'), 'vault'); return; }
   if (a === 'clips') { setStack(!(st.stackOpen && st.stackKind === 'clips'), 'clips'); return; }
+  if (a === 'dock') { setStack(!(st.stackOpen && st.stackKind === 'dock'), 'dock'); return; }
   if (a === 'speedo') { setStack(!(st.stackOpen && st.stackKind === 'speedo'), 'speedo'); return; }
   window.mimo.action(a);
 }));
@@ -1953,6 +2014,7 @@ const SETTINGS_UI = [
   ['toggle', 'deviceAlerts', 'chargerBt'],
   ['toggle', 'downloadAlerts', 'downloadAlerts'],
   ['toggle', 'shelf', 'shelf'],
+  ['toggle', 'dockOn', 'dock'],
   ['toggle', 'netAlerts', 'netAlerts'],
   ['toggle', 'sensorDot', 'sensorDot'],
   ['toggle', 'smartCopy', 'smartCopy'],
@@ -2161,6 +2223,33 @@ async function calendarPick() {
   window.mimo.setSetting('calendarFile', v.trim());
   showHud('cal', t('calendarWord'), v.trim() ? t('readingFiles') : t('calendarOff'), 2200, 'plain');
 }
+// ------------------------------------------------------------ the dock: a folder of program shortcuts as icon tiles
+function renderDock() {
+  $('#stack-clear').classList.add('hidden');
+  if (!st.dock.length) {
+    const e = document.createElement('div'); e.className = 'row empty wide'; e.textContent = t('dockEmpty');
+    stackList.appendChild(e);
+  } else {
+    const strip = document.createElement('div'); strip.className = 'dock-strip'; strip.id = 'dock-strip';
+    st.dock.forEach((a) => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      if (a.icon) b.style.backgroundImage = `url(data:image/png;base64,${a.icon})`;
+      else b.textContent = (a.name || '•').charAt(0).toUpperCase();
+      b.dataset.tip = a.name || '';
+      b.addEventListener('click', () => { window.mimo.dockLaunch(a.path); flash(a.name || '', ''); });
+      b.addEventListener('contextmenu', (ev) => { ev.preventDefault(); window.mimo.dockFolder(); });
+      strip.appendChild(b);
+    });
+    stackList.appendChild(strip);
+  }
+  const row = document.createElement('div'); row.className = 'row set';
+  const l = document.createElement('span'); l.className = 'lbl'; l.textContent = t('dockHint');
+  const go = document.createElement('button'); go.className = 'go'; go.textContent = t('dockFolder');
+  go.addEventListener('click', () => window.mimo.dockFolder());
+  row.append(l, go);
+  stackList.appendChild(row);
+}
 function renderSettings() {
   $('#stack-clear').classList.add('hidden');
   const s = st.settings || {};
@@ -2271,6 +2360,13 @@ function renderSettings() {
     folder.append(fl, fb);
     stackList.appendChild(folder);
   }
+  // the dock: the same "open the folder" row, so there is always a path to putting programs in it
+  const dockRow = document.createElement('div'); dockRow.className = 'row set';
+  const dfl = document.createElement('span'); dfl.className = 'lbl'; dfl.textContent = t('dockHint');
+  const dfb = document.createElement('button'); dfb.className = 'go'; dfb.textContent = t('dockFolder');
+  dfb.addEventListener('click', () => window.mimo.dockFolder());
+  dockRow.append(dfl, dfb);
+  stackList.appendChild(dockRow);
   const info = document.createElement('div'); info.className = 'row set info';
   info.textContent = s.appName || 'MIMO';
   const up = document.createElement('button'); up.className = 'go';
@@ -2684,11 +2780,22 @@ let curLang = null;
 function applyLang(l) {
   if (l === curLang) return;
   curLang = l;
-  window.MI18N.setLang(l);
-  buildFormatters();
-  paintVol(); paintStatus(); renderPluginTags(); tick(); updateBadge();
-  if (st.stackOpen) renderStack();
-  render();
+  const flip = () => {
+    // one clean pass: hide the surface, turn it around, reflow, show it again. Turning the page around
+    // in place leaves WebView2 holding half-mirrored frames of the old direction for anything that does
+    // not change afterwards (Persian labels that never painted, stale weather and lyrics rows).
+    document.body.style.display = 'none';
+    window.MI18N.setLang(l);
+    void document.body.offsetHeight;      // force one full relayout in the new direction
+    document.body.style.display = '';
+    buildFormatters();
+    paintVol(); paintStatus(); renderPluginTags(); tick(); updateBadge();
+    if (st.stackOpen) renderStack();
+    render();
+  };
+  // wait for Vazirmatn, so the fresh pass is laid out with the font it will keep using
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(flip);
+  else flip();
 }
 applyLang('en');   // boot in English; the saved setting lands with the first settings payload
 const applySettings = (s) => {
@@ -2699,6 +2806,10 @@ const applySettings = (s) => {
   st.notifMs = clamp(Number(s.notifSeconds) || 4, 2, 15) * 1000;
   st.deviceAlerts = s.deviceAlerts !== false;
   st.shelfOn = s.shelf !== false;
+  st.dockOn = s.dockOn !== false;
+  st.quickReply = s.quickReply !== false;
+  if (st.notif) $('#n-reply').classList.toggle('hidden', !(st.notif.aumid && !st.notif.action && st.quickReply !== false));
+  $('#t-dock').classList.toggle('hidden', st.dockOn === false || !st.dock.length);
   st.visuals = s.visuals !== false;
   st.skin = ['nebula', 'crystal', 'ember', 'reactor', 'venom'].includes(s.skin) ? s.skin : 'black';
   st.musicTheme = THEMES[s.musicTheme] ? s.musicTheme : 'sky';
@@ -2840,6 +2951,12 @@ window.mimo.onDownload((d) => {
   showNotif({ app: t('downloadApp'), title: d.name, body: d.size + (d.risky ? ' ' + t('showInFolder') : ' ' + t('clickToOpenDot')), icon: d.icon, action: 'download', path: d.path });
 });
 window.mimo.onSettings(applySettings);
+// strings outside the static HTML follow the language too
+window.MI18N.onRepaint(() => {
+  gearBadge.dataset.tip = t('updateDot');
+  $('#n-reply').dataset.tip = t('tipReply');
+  $('#t-dock').dataset.tip = t('tipDock');
+});
 window.mimo.monitorsList().then((l) => { if (Array.isArray(l) && l.length) { st.monitors = l; if (st.stackOpen && st.stackKind === 'settings') renderStack(); } });
 window.mimo.getSettings().then(applySettings);
 paintVol(); tick(); updateBadge(); paintStatus(); render();

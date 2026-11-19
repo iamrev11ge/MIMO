@@ -11,7 +11,7 @@ use crate::sys;
 
 static SETTINGS: Mutex<Option<Map<String, Value>>> = Mutex::new(None);
 const THEMES: [&str; 10] = ["black", "nebula", "crystal", "ember", "reactor", "venom", "cloud", "water", "lava", "ice"];
-const BOOLS: [&str; 19] = ["autoUpdate", "weatherOn", "lyricsOn", "statsOn", "musicReact", "netAlerts", "sensorDot", "smartCopy", "autoHide", "hideVideo", "copyPreview", "clipHistory", "deviceAlerts", "downloadAlerts", "shelf", "visuals", "noteHotkey", "vaultSymbols", "idleWalk"];
+const BOOLS: [&str; 21] = ["autoUpdate", "weatherOn", "lyricsOn", "statsOn", "musicReact", "netAlerts", "sensorDot", "smartCopy", "autoHide", "hideVideo", "copyPreview", "clipHistory", "deviceAlerts", "downloadAlerts", "shelf", "dockOn", "quickReply", "visuals", "noteHotkey", "vaultSymbols", "idleWalk"];
 const CALENDARS: [&str; 4] = ["gregorian", "shamsi", "shamsi-fa", "both"];
 const LANGS: [&str; 2] = ["en", "fa"];
 
@@ -29,6 +29,8 @@ fn defaults() -> Map<String, Value> {
         "monitor": 0,                // which screen the island lives on (the settings page numbers them)
         "weatherOn": true, "weatherName": "", "weatherLat": 0.0, "weatherLon": 0.0, "calendarFile": "",
         "lyricsOn": true,            // ask LRCLIB for the words of the playing track (title/artist only)
+        "dockOn": true,              // the dock: a folder of program shortcuts shown as icon tiles
+        "quickReply": true,          // the reply button on a notification (clipboard + open chat + paste)
         "statsOn": true,             // CPU / memory / network numbers, two seconds apart
         "shape": "island",           // "island" floats, "notch" hugs the top edge
         "lang": "en",                // interface language: "en" or "fa" (Persian, right-to-left)
@@ -158,6 +160,13 @@ pub fn apply(key: &str, value: &Value) {
             if let Some(v) = value.as_str().map(str::trim).filter(|v| v.len() <= 400) {
                 put(key, v.into());
                 crate::calendar::poke();
+            }
+        }
+        "dockFolder" => {
+            // where the dock's icons come from ("" = the app's own dock folder); may point anywhere the user chose
+            if let Some(v) = value.as_str().map(str::trim).filter(|v| v.len() <= 400) {
+                put(key, v.into());
+                crate::dock::poke();
             }
         }
         "dndHint" | "toured" => put(key, true.into()),

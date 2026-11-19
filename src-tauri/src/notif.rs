@@ -18,6 +18,7 @@ use windows::Win32::System::Com::*;
 use windows::Win32::System::Diagnostics::ToolHelp::*;
 use windows::Win32::System::LibraryLoader::{GetProcAddress, LoadLibraryW};
 use windows::Win32::System::Registry::*;
+use windows::Win32::UI::Input::KeyboardAndMouse::{SendInput, INPUT, INPUT_0, INPUT_KEYBOARD, KEYBDINPUT, KEYEVENTF_KEYUP, VIRTUAL_KEY, VK_CONTROL};
 use windows::Win32::UI::Notifications::INotificationActivationCallback;
 use windows::Win32::UI::Shell::PropertiesSystem::IPropertyStore;
 use windows::Win32::UI::Shell::{IShellLinkW, ShellLink};
@@ -145,7 +146,8 @@ impl Notifs {
     }
 
     // ---- Telegram's own popups (when "Use Windows notifications" is off they never reach Windows):
-    // small, topmost, frameless tool windows near a screen edge.
+    // small, topmost, frameless tool windows near a screen edge. UI Automation reads who wrote and what,
+    // so the pill can show the sender instead of a bare "New message".
     fn telegram_icon(&mut self) -> Option<String> {
         if self.tg_icon.is_none() {
             let icon = processes_named("telegram.exe").first().and_then(|pid| sys::exe_of_pid(*pid)).and_then(|exe| sys::file_icon_b64(&exe));
@@ -177,64 +179,141 @@ impl Notifs {
             current.insert(h.0 as isize);
             if !self.tg_seen.contains(&(h.0 as isize)) && !self.tg_first {
                 let icon = self.telegram_icon();
-                sys::helper(json!({ "t": "notif", "id": format!("tg{}", h.0 as isize), "aumid": "Telegram.TelegramDesktop", "app": "Telegram", "title": "New message", "body": "", "icon": icon }));
+                let (sender, body) = popup_texts(h);
+                sys::helper(json!({
+                    "t": "notif", "id": format!("tg{}", h.0 as isize), "aumid": "Telegram.TelegramDesktop", "app": "Telegram",
+                    "title": if sender.is_empty() { "New message".to_string() } else { sender },
+                    "body": body, "icon": icon
+                }));
             }
         }
         self.tg_seen = current;
         self.tg_first = false;
     }
 
-    /// A click on a notification. Windows keeps each toast's XML (with its "launch" arguments) in the per-user
-    /// notification database and hands those arguments to the app's toast activator; we do the same.
+    /// A click on a notification: the same thing Windows itself would do (see `activate` below).
     pub fn activate(&self, id: &str, aumid: &str) {
         let numeric = !id.is_empty() && id.chars().all(|c| c.is_ascii_digit());
-        let (mut launch, mut kind) = (String::new(), String::new());
-        if numeric {
-            if let Some(xml) = id.parse::<i64>().ok().and_then(toast_payload) {
-                launch = xml_attr(&xml, "launch");
-                kind = xml_attr(&xml, "activationType");
-            }
-        }
-        let mut how = "none";
-        let scheme = launch.split(':').next().unwrap_or("");
-        let is_protocol = kind == "protocol"
-            && launch.contains(':')
-            && scheme.len() > 1
-            && scheme.chars().next().is_some_and(|c| c.is_ascii_alphabetic())
-            && scheme.chars().all(|c| c.is_ascii_alphanumeric() || "+.-".contains(c))
-            && !scheme.eq_ignore_ascii_case("file");
-        if is_protocol {
-            sys::allow_foreground();
-            sys::shell_open(&launch, None);
-            how = "protocol";
-        } else {
-            // without the stored launch arguments there is nothing exact to activate: just bring the app forward
-            if numeric && !aumid.is_empty() {
-                if let Some(clsid) = activator_clsid(aumid) {
-                    how = match com_activate(clsid, aumid.to_string(), launch.clone()) {
-                        1 => "activator",
-                        2 => "activator-pending",
-                        _ => "none",
-                    };
-                }
-            }
-            if how == "none" && !aumid.is_empty() {
-                sys::allow_foreground();
-                sys::shell_open("explorer.exe", Some(&format!("shell:AppsFolder\\{aumid}")));
-                how = "app";
-            }
-        }
+        activate(id, aumid);
         // like a real click, the notification leaves the notification center
-        if how != "none" && numeric {
+        if numeric {
             if let Ok(n) = id.parse::<u32>() {
                 self.dismiss(n);
             }
         }
-        sys::helper(json!({ "t": "activated", "id": id, "how": how }));
     }
 }
 
+/// A click on a notification. Windows keeps each toast's XML (with its "launch" arguments) in the per-user
+/// notification database and hands those arguments to the app's toast activator; we do the same.
+fn activate(id: &str, aumid: &str) {
+    let numeric = !id.is_empty() && id.chars().all(|c| c.is_ascii_digit());
+    let (mut launch, mut kind) = (String::new(), String::new());
+    if numeric {
+        if let Some(xml) = id.parse::<i64>().ok().and_then(toast_payload) {
+            launch = xml_attr(&xml, "launch");
+            kind = xml_attr(&xml, "activationType");
+        }
+    }
+    let mut how = "none";
+    let scheme = launch.split(':').next().unwrap_or("");
+    let is_protocol = kind == "protocol"
+        && launch.contains(':')
+        && scheme.len() > 1
+        && scheme.chars().next().is_some_and(|c| c.is_ascii_alphabetic())
+        && scheme.chars().all(|c| c.is_ascii_alphanumeric() || "+.-".contains(c))
+        && !scheme.eq_ignore_ascii_case("file");
+    if is_protocol {
+        sys::allow_foreground();
+        sys::shell_open(&launch, None);
+        how = "protocol";
+    } else {
+        // without the stored launch arguments there is nothing exact to activate: just bring the app forward
+        if numeric && !aumid.is_empty() {
+            if let Some(clsid) = activator_clsid(aumid) {
+                how = match com_activate(clsid, aumid.to_string(), launch.clone()) {
+                    1 => "activator",
+                    2 => "activator-pending",
+                    _ => "none",
+                };
+            }
+        }
+        if how == "none" && !aumid.is_empty() {
+            sys::allow_foreground();
+            sys::shell_open("explorer.exe", Some(&format!("shell:AppsFolder\\{aumid}")));
+            how = "app";
+        }
+    }
+    sys::helper(json!({ "t": "activated", "id": id, "how": how }));
+}
+
 // ---------------------------------------------------------------- processes and windows
+/// The texts of a Telegram popup, via UI Automation (Telegram Desktop is Qt; its labels carry the
+/// sender and the message). Returns (sender, body) — empty strings when nothing readable is there.
+fn popup_texts(h: HWND) -> (String, String) {
+    use windows::Win32::UI::Accessibility::{CUIAutomation, TreeScope_Descendants};
+    sys::com_init();
+    unsafe {
+        let Ok(automation): windows::core::Result<windows::Win32::UI::Accessibility::IUIAutomation> = CoCreateInstance(&CUIAutomation, None, CLSCTX_INPROC_SERVER) else {
+            return (String::new(), String::new());
+        };
+        let Ok(root) = automation.ElementFromHandle(h) else { return (String::new(), String::new()) };
+        let Ok(true_cond) = automation.CreateTrueCondition() else { return (String::new(), String::new()) };
+        let Ok(all) = root.FindAll(TreeScope_Descendants, &true_cond) else { return (String::new(), String::new()) };
+        let mut texts: Vec<String> = Vec::new();
+        for i in 0..all.Length().unwrap_or(0) {
+            let Ok(el) = all.GetElement(i) else { continue };
+            let Ok(name) = el.CurrentName() else { continue };
+            let name = name.to_string();
+            let name = name.trim();
+            if name.is_empty() || name.eq_ignore_ascii_case("Telegram") {
+                continue;
+            }
+            // a bare clock ("12:47") is not part of the conversation
+            if name.len() <= 5 && name.chars().all(|c| c.is_ascii_digit() || c == ':') {
+                continue;
+            }
+            if !texts.iter().any(|t| t == name) {
+                texts.push(name.to_string());
+            }
+        }
+        if texts.is_empty() {
+            return (String::new(), String::new());
+        }
+        let sender = texts.remove(0);
+        let body = texts.join(" ").trim().to_string();
+        (sender, body)
+    }
+}
+
+/// The user answered from the pill: the reply goes onto the clipboard, the exact chat opens the way a
+/// click on the notification would, and a Ctrl+V lands in the window that came forward. Sending it is
+/// still the user's own Enter — nothing is ever typed into a window we did not bring up ourselves.
+pub fn paste_reply(id: &str, aumid: &str, text: &str) {
+    if text.is_empty() {
+        return;
+    }
+    crate::clip::write_text(text);
+    self::activate(id, aumid);
+    std::thread::spawn(|| {
+        std::thread::sleep(Duration::from_millis(900));
+        unsafe {
+            let fg = GetForegroundWindow();
+            if fg.0.is_null() || sys::pid_of(fg) == std::process::id() {
+                return; // nothing came forward: the paste must not land somewhere random
+            }
+            let key = |vk: VIRTUAL_KEY, up: bool| INPUT {
+                r#type: INPUT_KEYBOARD,
+                Anonymous: INPUT_0 {
+                    ki: KEYBDINPUT { wVk: vk, wScan: 0, dwFlags: if up { KEYEVENTF_KEYUP } else { Default::default() }, time: 0, dwExtraInfo: 0 },
+                },
+            };
+            let inputs = [key(VK_CONTROL, false), key(VIRTUAL_KEY(0x56), false), key(VIRTUAL_KEY(0x56), true), key(VK_CONTROL, true)]; // Ctrl+V
+            SendInput(&inputs, std::mem::size_of::<INPUT>() as i32);
+        }
+    });
+}
+
 pub fn processes_named(name_lower: &str) -> Vec<u32> {
     let mut out = Vec::new();
     unsafe {

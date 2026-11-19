@@ -113,6 +113,11 @@ const DICT = {
     tnBlack: 'Black', tnCover: 'Cover colours', tnPlainBlack: 'Plain black', tnVioletSky: 'Violet night sky',
     tnNebula: 'Nebula', tnCrystal: 'Sapphire', tnEmber: 'Ember', tnReactor: 'Reactor', tnVenom: 'Venom',
     tnCloud: 'Storm cloud', tnWater: 'Water', tnLava: 'Lava', tnIce: 'Ice',
+    // dock (a folder of program shortcuts shown as icons)
+    dock: 'App dock', dockFolder: 'Open folder', dockHint: 'Programs: put their shortcuts (.lnk, .exe, .url) in the dock folder',
+    dockEmpty: 'The dock folder is empty — put program shortcuts in it and they appear here',
+    // replying to a notification from the pill
+    replyPlaceholder: 'Your reply…', replySent: 'Ready to send', replyPasted: 'the chat is open — paste done, press Enter to send it',
     // tour
     tourHead: 'Hover the pill to open its menu', tryIt: 'Try it',
     tourNowPlaying: 'Now playing', tourNowPlayingD: 'Play something: cover, title and controls appear here',
@@ -132,10 +137,10 @@ const DICT = {
     tipDate: 'Click to switch calendar', tipWeather: 'Click for the days ahead',
     tipBack: 'Back to now playing', tipPlayPause: 'Play / Pause', tipShot: 'Screenshot',
     tipOcr: 'Grab text from the screen: drag a box around it (Ctrl+Alt+T)',
-    tipClips: 'Clipboard history', tipNote: 'Quick note (Ctrl+Alt+N)', tipVault: 'Passwords',
+    tipClips: 'Clipboard history', tipNote: 'Quick note (Ctrl+Alt+N)', tipVault: 'Passwords', tipReply: 'Reply from here',
     tipSpeedo: 'Speedo VPN', tipTimer: 'Timer',
     tipShelf: 'File shelf — click to see the files, drag this button to take them all',
-    tipInbox: 'Notifications', tipSettings: 'Settings', tipLyrics: 'Lyrics', tipPrev: 'Previous', tipNext: 'Next',
+    tipDock: 'App dock', tipInbox: 'Notifications', tipSettings: 'Settings', tipLyrics: 'Lyrics', tipPrev: 'Previous', tipNext: 'Next',
     tipMore: 'Main menu (stays until you switch back to the track)', tipMute: 'Click to mute',
     tipShowAll: 'Show all the files', tipMenu: 'Menu', tipLess: 'Less', tipMoreSteps: 'More', tipStart: 'Start / Pause',
     tipReset: 'Reset', tipKeep: 'Keep (Enter)', tipCancel: 'Cancel (Esc)', tipAnother: 'Another one',
@@ -243,6 +248,9 @@ const DICT = {
     tnBlack: 'سیاه', tnCover: 'رنگ‌های جلد', tnPlainBlack: 'سیاه ساده', tnVioletSky: 'آسمان شب بنفش',
     tnNebula: 'سحابی', tnCrystal: 'یاقوت', tnEmber: 'اخگر', tnReactor: 'رآکتور', tnVenom: 'ونوم',
     tnCloud: 'ابر طوفانی', tnWater: 'آب', tnLava: 'گدازه', tnIce: 'یخ',
+    dock: 'نوار برنامه‌ها', dockFolder: 'باز کردن پوشه', dockHint: 'برنامه‌ها: میان‌برشان (.lnk، .exe، .url) را در پوشهٔ نوار بگذارید',
+    dockEmpty: 'پوشهٔ نوار خالی است — میان‌بر برنامه‌ها را درش بگذارید تا اینجا بیایند',
+    replyPlaceholder: 'پاسخ شما…', replySent: 'آمادهٔ ارسال', replyPasted: 'گفت‌وگو باز شد و چسبانده شد — با Enter بفرست',
     tourHead: 'برای باز کردن منو، نشانگر را روی قرص ببرید', tryIt: 'امتحان کنید',
     tourNowPlaying: 'در حال پخش', tourNowPlayingD: 'چیزی پخش کنید: جلد، عنوان و دکمه‌ها اینجا می‌آیند',
     tourNotifs: 'اعلان‌ها', tourNotifsD: 'یک خط روی قرص. کلیکش کنید تا همان گفت‌وگو باز شود',
@@ -259,10 +267,10 @@ const DICT = {
     tipDate: 'کلیک برای تغییر تقویم', tipWeather: 'کلیک برای روزهای پیش‌رو',
     tipBack: 'بازگشت به پخش', tipPlayPause: 'پخش / توقف', tipShot: 'عکس صفحه',
     tipOcr: 'برداشتن متن از صفحه: دورش کادر بکشید (Ctrl+Alt+T)',
-    tipClips: 'تاریخچهٔ کلیپ‌بورد', tipNote: 'یادداشت سریع (Ctrl+Alt+N)', tipVault: 'رمزها',
+    tipClips: 'تاریخچهٔ کلیپ‌بورد', tipNote: 'یادداشت سریع (Ctrl+Alt+N)', tipVault: 'رمزها', tipReply: 'پاسخ از همین‌جا',
     tipSpeedo: 'Speedo VPN', tipTimer: 'تایمر',
     tipShelf: 'قفسهٔ فایل — کلیک برای دیدن فایل‌ها، بیرون کشیدن این دکمه برای بردن همه',
-    tipInbox: 'اعلان‌ها', tipSettings: 'تنظیمات', tipLyrics: 'متن آهنگ', tipPrev: 'قبلی', tipNext: 'بعدی',
+    tipDock: 'نوار برنامه‌ها', tipInbox: 'اعلان‌ها', tipSettings: 'تنظیمات', tipLyrics: 'متن آهنگ', tipPrev: 'قبلی', tipNext: 'بعدی',
     tipMore: 'منوی اصلی (تا وقتی به آهنگ برنگردید می‌ماند)', tipMute: 'کلیک برای بی‌صدا',
     tipShowAll: 'نمایش همهٔ فایل‌ها', tipMenu: 'منو', tipLess: 'کمتر', tipMoreSteps: 'بیشتر', tipStart: 'شروع / توقف',
     tipReset: 'از نو', tipKeep: 'نگه‌داشتن (Enter)', tipCancel: 'لغو (Esc)', tipAnother: 'یکی دیگر',
@@ -286,11 +294,18 @@ const t = (key, vars) => {
   return s;
 };
 
-// fills the data-i18n (textContent) and data-i18n-title (title) attributes of the static HTML
+// fills the data-i18n (textContent) and data-i18n-title (title / the pill's own tooltip) attributes of the static HTML
 const paintStatic = () => {
   $$('[data-i18n]').forEach((el) => { el.textContent = t(el.dataset.i18n); });
-  $$('[data-i18n-title]').forEach((el) => { el.title = t(el.dataset.i18nTitle); });
+  $$('[data-i18n-title]').forEach((el) => {
+    if (el.dataset.tip !== undefined) el.dataset.tip = t(el.dataset.i18nTitle);
+    else el.title = t(el.dataset.i18nTitle);
+  });
 };
+
+// extra repainting for strings that are not in the static HTML (badges, dynamic buttons)
+const repaints = [];
+const onRepaint = (fn) => repaints.push(fn);
 
 const setLang = (l) => {
   lang = l === 'fa' ? 'fa' : 'en';
@@ -299,7 +314,8 @@ const setLang = (l) => {
   de.dir = lang === 'fa' ? 'rtl' : 'ltr';
   document.body.classList.toggle('fa', lang === 'fa');
   paintStatic();
+  repaints.forEach((fn) => { try { fn(); } catch { /* one broken painter must not stop the rest */ } });
 };
 
-window.MI18N = { t, setLang, lang: () => lang, is: (l) => lang === l };
+window.MI18N = { t, setLang, lang: () => lang, is: (l) => lang === l, onRepaint };
 })();

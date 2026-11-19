@@ -25,7 +25,25 @@ html[dir="rtl"] .row .mqbox b { margin-right: 0; margin-left: 5px; }
 html[dir="rtl"] .row .x { margin-left: 0; margin-right: 2px; }
 html[dir="rtl"] .sw.on::after { transform: translateX(-14px); }
 html[dir="rtl"] .sw.big.on::after { transform: translateX(-24px); }
+html[dir="rtl"] #n-reply { margin-left: 0; margin-right: -2px; }
 /* the media progress bar stays left-to-right in both languages (players do) */
+
+/* ------------------------------------------------------------ the pill's own tooltip.
+   Native balloons cannot shape Persian (they draw detached letters), so tooltips are drawn here. */
+#tip { position: absolute; z-index: 60; width: max-content; max-width: 300px; padding: 4px 10px; border-radius: 9px;
+  background: #0c0c10; color: rgba(255, 255, 255, .92); font-size: 11.5px; line-height: 1.5; text-align: center;
+  box-shadow: 0 3px 12px rgba(0, 0, 0, .45), inset 0 0 0 1px rgba(255, 255, 255, .12);
+  opacity: 0; transform: translateY(-3px); pointer-events: none; transition: opacity .14s, transform .14s; }
+#tip.on { opacity: 1; transform: none; }
+#n-reply { margin-left: -2px; }
+
+/* ------------------------------------------------------------ the dock: a folder's programs as icon tiles */
+#dock-strip { display: flex; flex-wrap: wrap; justify-content: center; gap: 5px; width: 100%; padding: 6px 16px 2px; }
+#dock-strip button { flex: none; width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center;
+  background-color: rgba(255, 255, 255, .06); background-size: contain; background-position: center; background-repeat: no-repeat;
+  font-weight: 700; font-size: 13px; transition: transform .18s var(--spring), background-color .15s; }
+#dock-strip button:hover { transform: scale(1.12); background-color: rgba(255, 255, 255, .18); }
+#dock-strip button:active { transform: scale(.9); }
 
 /* ------------------------------------------------ the pill */
 #island {

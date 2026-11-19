@@ -4,6 +4,7 @@
 mod audio;
 mod calendar;
 mod clip;
+mod dock;
 mod hit;
 mod lyrics;
 mod media;
@@ -94,6 +95,15 @@ fn notif_dismiss(id: String) {
 #[tauri::command]
 fn notif_clear() {
     poll::send(Cmd::ClearAll)
+}
+/// The user answered a notification from the pill. The text is filtered like every other string that
+/// crosses the bridge, then the poll thread puts it on the clipboard, opens the chat and pastes.
+#[tauri::command]
+fn notif_reply(id: String, aumid: String, text: String) {
+    let id: String = id.chars().filter(|c| c.is_ascii_alphanumeric()).take(40).collect();
+    let aumid: String = aumid.chars().filter(|c| *c != '\r' && *c != '\n').take(300).collect();
+    let text: String = text.chars().filter(|c| *c != '\0').take(500).collect();
+    poll::send(Cmd::Reply(id, aumid, text))
 }
 
 // ---------------------------------------------------------------- commands: clipboard
@@ -228,6 +238,17 @@ fn weather_city(name: String) -> Value {
 fn plugins_folder() {
     sys::shell_open(plugin::dir().to_string_lossy().as_ref(), None);
     plugin::poke();
+}
+/// Launches a dock tile (only files inside the dock folder with an allowed extension reach the shell).
+#[tauri::command]
+fn dock_launch(path: String) {
+    dock::launch(&path);
+}
+/// Creates (if needed) and opens the dock folder in Explorer, then rescans it.
+#[tauri::command]
+fn dock_folder() {
+    sys::shell_open(dock::dir().to_string_lossy().as_ref(), None);
+    dock::poke();
 }
 #[tauri::command(async)]
 fn update_check() -> String {
@@ -434,7 +455,7 @@ fn main() {
             clips_get, clip_copy, clip_pin, clip_remove, clips_clear, copy_text,
             shelf_get, shelf_add, shelf_add_data, shelf_add_url, shelf_remove, shelf_clear, shelf_reveal, shelf_drag, open_download,
             settings_get, settings_set, action, open_url, ocr_done, speedo_cmd, update_check, update_install,
-            monitors_list, weather_city, plugins_folder,
+            monitors_list, weather_city, plugins_folder, dock_launch, dock_folder, notif_reply,
             notes_get, note_save, note_pin, note_fired, note_remove,
             vault_list, vault_generate, vault_save, vault_edit, fg_context, vault_copy, copy_secret, vault_reveal, vault_remove, debug_out
         ])
@@ -486,6 +507,7 @@ fn main() {
             update::start();
             weather::start();
             plugin::start();
+            dock::start();
             // speedo::start();   // parked: Speedo has no control pipe yet, so there is nothing to talk to
             if let Some(d) = debug.clone() {
                 start_debug(win, d);

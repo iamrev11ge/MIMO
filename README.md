@@ -7,7 +7,6 @@
 A compact, interactive island for Windows that brings your music, notifications, clipboard, files, and everyday tools together in one elegant space at the top of your screen.
 
 [![release](https://img.shields.io/github/v/release/iamrev11ge/MIMO?label=release&color=555)](https://github.com/iamrev11ge/MIMO/releases/latest)
-[![downloads](https://img.shields.io/github/downloads/iamrev11ge/MIMO/total?label=downloads&color=555)](https://github.com/iamrev11ge/MIMO/releases)
 ![size](https://img.shields.io/badge/size-~5%20MB-555)
 [![license](https://img.shields.io/badge/license-MIT-555)](LICENSE)
 

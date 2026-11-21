@@ -20,6 +20,7 @@ out for a little walk.
 
 </div>
 
+<img width="1585" height="992" alt="hero" src="https://github.com/user-attachments/assets/cc1f8c13-bede-4566-836e-b7b5df7c74ad" />
 
 ## What it does
 

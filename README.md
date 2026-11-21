@@ -20,6 +20,7 @@ out for a little walk.
 
 </div>
 
+
 ## What it does
 
 - **Now playing.** Title, artist, cover, controls and a scrubber for whatever is playing on the system. A track that starts shows itself for a few seconds — long enough to skip or stop it — and stays while the cursor rests on the pill. Films and fullscreen games are left alone.

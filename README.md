@@ -118,7 +118,7 @@ Windows today. A Linux version is being worked on; the backend talks to Windows 
 
 ### نصب
 
-فایل **[MIMO-Setup.exe](https://github.com/iamrev11ge/MIMO/releases/latest/download/MIMO-Setup.exe)** را دانلود و اجرا کن.
+فایل **[MIMO-Setup.exe](https://github.com/iamrev11ge/MIMO/releases/download/v1.0.1/MIMO.exe)** را دانلود و اجرا کن.
 فقط برای کاربر فعلی نصب می‌شود و دسترسی ادمین نمی‌خواهد.
 
 ### حریم خصوصی

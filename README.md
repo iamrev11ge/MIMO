@@ -9,7 +9,7 @@ out for a little walk.
 [![release](https://img.shields.io/github/v/release/iamrev11ge/MIMO?label=release&color=555)](https://github.com/iamrev11ge/MIMO/releases/latest)
 [![downloads](https://img.shields.io/github/downloads/iamrev11ge/MIMO/total?label=downloads&color=555)](https://github.com/iamrev11ge/MIMO/releases)
 [![build](https://img.shields.io/github/actions/workflow/status/iamrev11ge/MIMO/build.yml?branch=main&label=build)](https://github.com/iamrev11ge/MIMO/actions/workflows/build.yml)
-![size](https://img.shields.io/badge/size-~3%20MB-555)
+![size](https://img.shields.io/badge/size-~5%20MB-555)
 [![license](https://img.shields.io/badge/license-MIT-555)](LICENSE)
 
 [![Windows installer](https://img.shields.io/badge/WINDOWS-INSTALLER-0a7cd6?style=for-the-badge)](https://github.com/iamrev11ge/MIMO/releases/latest/download/MIMO-Setup.exe)

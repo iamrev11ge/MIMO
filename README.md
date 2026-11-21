@@ -44,7 +44,7 @@ And also:
 
 ## Install
 
-Download **[MIMO-Setup.exe](https://github.com/iamrev11ge/MIMO/releases/latest/download/MIMO-Setup.exe)** and run it.
+Download **[MIMO-Setup.exe](https://github.com/iamrev11ge/MIMO/releases/download/v1.0.1/MIMO.exe)** and run it.
 It installs for the current user only (no administrator prompt) and starts with Windows; both can be changed in the settings.
 
 Windows 10 or 11 with the WebView2 runtime (already part of Windows 11 and of current Windows 10).
